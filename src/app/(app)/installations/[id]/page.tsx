@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Pencil, FileDown } from "lucide-react";
 import { getInstallationWithImages } from "@/lib/installations";
 import { requireUser } from "@/lib/auth";
-import { CUSTOMER_FIELDS, IMAGE_SLOTS } from "@/lib/constants";
+import { CUSTOMER_FIELDS } from "@/lib/constants";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import type { Installation } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -20,9 +20,9 @@ export default async function InstallationDetailPage({
   const [data, user] = await Promise.all([getInstallationWithImages(id), requireUser()]);
   if (!data) notFound();
 
-  const { installation, imagesBySlot } = data;
+  const { installation, images } = data;
   const canEdit = user.isAdmin || installation.created_by === user.id;
-  const allPaths = Object.values(imagesBySlot).flat().map((i) => i.path);
+  const allPaths = images.map((i) => i.path);
 
   return (
     <div className="space-y-6">
@@ -87,49 +87,33 @@ export default async function InstallationDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Image Evidence</CardTitle>
+          <CardTitle>Site Photos ({images.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {IMAGE_SLOTS.map((slot) => {
-              const imgs = imagesBySlot[slot.key] ?? [];
-              return (
-                <div key={slot.key} className="flex flex-col rounded-lg border p-3">
-                  <div className="mb-2 min-h-[2.5rem]">
-                    <h3 className="text-sm font-medium leading-tight">{slot.label}</h3>
-                    {slot.description && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">{slot.description}</p>
-                    )}
-                    <span className="text-xs text-muted-foreground">({imgs.length})</span>
-                  </div>
-                  {imgs.length === 0 ? (
-                    <div className="flex flex-1 items-center justify-center rounded-md border border-dashed py-8 text-xs text-muted-foreground">
-                      No photos
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      {imgs.map((img) => (
-                        <a
-                          key={img.id}
-                          href={img.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="aspect-square overflow-hidden rounded-md border bg-muted"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={img.url}
-                            alt={slot.label}
-                            className="h-full w-full object-cover transition-transform hover:scale-105"
-                          />
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          {images.length === 0 ? (
+            <div className="flex items-center justify-center rounded-md border border-dashed py-12 text-sm text-muted-foreground">
+              No photos
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              {images.map((img) => (
+                <a
+                  key={img.id}
+                  href={img.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="aspect-square overflow-hidden rounded-md border bg-muted"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img.url}
+                    alt="Evidence"
+                    className="h-full w-full object-cover transition-transform hover:scale-105"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

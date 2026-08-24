@@ -1,11 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { STORAGE_BUCKET } from "@/lib/constants";
 import type { Installation, InstallationImage } from "@/lib/types";
-import type { SlotImage } from "@/components/image-slot-uploader";
+import type { SlotImage } from "@/components/image-uploader";
 
 export interface InstallationWithImages {
   installation: Installation;
-  imagesBySlot: Record<string, SlotImage[]>;
+  images: SlotImage[];
   totalImages: number;
 }
 
@@ -22,17 +22,17 @@ export async function getInstallationWithImages(
 
   if (!installation) return null;
 
-  const { data: images } = await supabase
+  const { data: imageRows } = await supabase
     .from("installation_images")
     .select("*")
     .eq("installation_id", id)
     .order("created_at", { ascending: true });
 
-  const imageRows = (images ?? []) as InstallationImage[];
-  const imagesBySlot: Record<string, SlotImage[]> = {};
+  const rows = (imageRows ?? []) as InstallationImage[];
+  const images: SlotImage[] = [];
 
-  if (imageRows.length > 0) {
-    const paths = imageRows.map((r) => r.storage_path);
+  if (rows.length > 0) {
+    const paths = rows.map((r) => r.storage_path);
     const { data: signed } = await supabase.storage
       .from(STORAGE_BUCKET)
       .createSignedUrls(paths, 3600);
@@ -42,19 +42,18 @@ export async function getInstallationWithImages(
       if (s.path && s.signedUrl) urlByPath.set(s.path, s.signedUrl);
     });
 
-    for (const row of imageRows) {
-      const slotImg: SlotImage = {
+    for (const row of rows) {
+      images.push({
         id: row.id,
         path: row.storage_path,
         url: urlByPath.get(row.storage_path) ?? "",
-      };
-      (imagesBySlot[row.slot] ??= []).push(slotImg);
+      });
     }
   }
 
   return {
     installation: installation as Installation,
-    imagesBySlot,
-    totalImages: imageRows.length,
+    images,
+    totalImages: rows.length,
   };
 }

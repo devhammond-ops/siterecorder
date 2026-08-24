@@ -15,22 +15,6 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
 const REPORT_FROM_EMAIL = Deno.env.get("REPORT_FROM_EMAIL") ?? "reports@example.com";
 
-const IMAGE_SLOTS: { key: string; label: string }[] = [
-  { key: "client_serving_fat", label: "Client Serving FAT" },
-  { key: "serving_fat_inside", label: "Inside View of Serving FAT" },
-  { key: "before_installation", label: "Before Installation" },
-  { key: "after_installation", label: "After Installation" },
-  { key: "anchoring_point", label: "Anchoring Point" },
-  { key: "drop_cable_dressing", label: "Drop Cable Dressing" },
-  { key: "atb_patch_cord", label: "ATB / Patch Cord" },
-  { key: "ont_installed", label: "ONT Installed" },
-  { key: "cable_entry_point", label: "Cable Entry Point" },
-  { key: "installer_ppe_pole", label: "Installer on Pole (PPE)" },
-  { key: "power_meter_reading", label: "Power Meter Reading" },
-  { key: "cable_swing_overview", label: "Cable Swing Overview" },
-  { key: "acceptance_form", label: "Acceptance Form" },
-];
-
 const INFO_FIELDS: { key: string; label: string }[] = [
   { key: "order_number", label: "Order #" },
   { key: "status", label: "Status" },
@@ -40,6 +24,7 @@ const INFO_FIELDS: { key: string; label: string }[] = [
   { key: "fttx_number", label: "FTTX #" },
   { key: "customer_phone", label: "Phone" },
   { key: "customer_address", label: "Address" },
+  { key: "gps_address", label: "Ghana Post Address" },
   { key: "gps_lat", label: "GPS Lat" },
   { key: "gps_lng", label: "GPS Lng" },
   { key: "device_serial", label: "Device S/N" },
@@ -308,8 +293,7 @@ async function buildPdf(schedule: any, installations: any[], from: Date | null, 
           width: dims.w,
           height: dims.h,
         });
-        const label = IMAGE_SLOTS.find((s) => s.key === img.slot)?.label ?? img.slot;
-        page.drawText(truncate(label, 20), {
+        page.drawText(`Photo ${idx + 1}`, {
           x,
           y: y - 10,
           size: 6,

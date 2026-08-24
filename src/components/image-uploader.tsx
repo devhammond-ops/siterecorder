@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { Trash2, Upload, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { STORAGE_BUCKET, type ImageSlotDef } from "@/lib/constants";
+import { DEFAULT_IMAGE_SLOT, STORAGE_BUCKET } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 
 export interface SlotImage {
@@ -13,17 +13,15 @@ export interface SlotImage {
 }
 
 interface Props {
-  slot: ImageSlotDef;
   /** create = buffer files in parent; edit = upload immediately. */
   mode: "create" | "edit";
   installationId?: string;
   existing?: SlotImage[];
   /** create-mode: report buffered files upward. */
-  onPendingChange?: (slotKey: string, files: File[]) => void;
+  onPendingChange?: (files: File[]) => void;
 }
 
-export function ImageSlotUploader({
-  slot,
+export function ImageUploader({
   mode,
   installationId,
   existing = [],
@@ -46,21 +44,17 @@ export function ImageSlotUploader({
         ...list.map((file) => ({ file, preview: URL.createObjectURL(file) })),
       ];
       setPending(next);
-      onPendingChange?.(
-        slot.key,
-        next.map((p) => p.file)
-      );
+      onPendingChange?.(next.map((p) => p.file));
       return;
     }
 
-    // edit mode: upload immediately
     if (!installationId) return;
     setBusy(true);
     const supabase = createClient();
     try {
       for (const file of list) {
         const ext = file.name.split(".").pop() || "jpg";
-        const path = `${installationId}/${slot.key}-${Date.now()}-${Math.random()
+        const path = `${installationId}/${DEFAULT_IMAGE_SLOT}-${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 8)}.${ext}`;
 
@@ -71,7 +65,11 @@ export function ImageSlotUploader({
 
         const { data: row, error: insErr } = await supabase
           .from("installation_images")
-          .insert({ installation_id: installationId, slot: slot.key, storage_path: path })
+          .insert({
+            installation_id: installationId,
+            slot: DEFAULT_IMAGE_SLOT,
+            storage_path: path,
+          })
           .select("id")
           .single();
         if (insErr) throw insErr;
@@ -111,21 +109,15 @@ export function ImageSlotUploader({
   function removePending(index: number) {
     const next = pending.filter((_, i) => i !== index);
     setPending(next);
-    onPendingChange?.(
-      slot.key,
-      next.map((p) => p.file)
-    );
+    onPendingChange?.(next.map((p) => p.file));
   }
 
   return (
-    <div className="rounded-lg border p-3">
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium">{slot.label}</p>
-          {slot.description && (
-            <p className="text-xs text-muted-foreground">{slot.description}</p>
-          )}
-        </div>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          Upload all site photos together. You can add or remove photos anytime.
+        </p>
         <Button
           type="button"
           variant="outline"
@@ -134,7 +126,7 @@ export function ImageSlotUploader({
           disabled={busy}
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-          Add
+          Add photos
         </Button>
         <input
           ref={inputRef}
@@ -147,14 +139,17 @@ export function ImageSlotUploader({
         />
       </div>
 
-      {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
 
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {images.map((img) => (
-          <div key={img.id} className="group relative aspect-square overflow-hidden rounded-md border bg-muted">
+          <div
+            key={img.id}
+            className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
+          >
             {img.url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={img.url} alt={slot.label} className="h-full w-full object-cover" />
+              <img src={img.url} alt="Evidence" className="h-full w-full object-cover" />
             ) : null}
             <button
               type="button"
@@ -168,9 +163,12 @@ export function ImageSlotUploader({
         ))}
 
         {pending.map((p, i) => (
-          <div key={i} className="group relative aspect-square overflow-hidden rounded-md border bg-muted">
+          <div
+            key={`pending-${i}`}
+            className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={p.preview} alt="pending" className="h-full w-full object-cover opacity-70" />
+            <img src={p.preview} alt="Pending upload" className="h-full w-full object-cover opacity-70" />
             <button
               type="button"
               onClick={() => removePending(i)}
@@ -186,9 +184,14 @@ export function ImageSlotUploader({
         ))}
 
         {images.length === 0 && pending.length === 0 && (
-          <div className="col-span-3 flex aspect-[3/1] items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground sm:col-span-4">
-            No photos yet
-          </div>
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="col-span-2 flex aspect-[2/1] flex-col items-center justify-center gap-2 rounded-md border border-dashed text-sm text-muted-foreground hover:bg-muted/50 sm:col-span-3 md:col-span-4 lg:col-span-5"
+          >
+            <Upload className="h-6 w-6" />
+            Tap to select photos
+          </button>
         )}
       </div>
     </div>

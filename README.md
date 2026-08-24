@@ -9,8 +9,7 @@ export customer data to Excel.
 
 - Role-based access (technician / admin) via Supabase Auth
 - Create / edit / delete installation records (one customer per row)
-- Fixed, labeled photo-evidence slots matching the field form (Before/After,
-  Anchoring Point, ONT, PPE on pole, Power Meter, Acceptance Form, etc.)
+- Multi-photo evidence upload (add / delete on create and edit)
 - Detail view: customer info at the top, image evidence in a responsive grid
 - Add / delete photos when editing an entry
 - Dashboard with search + status + install-date filters
