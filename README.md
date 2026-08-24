@@ -121,6 +121,12 @@ npm run dev
 Open http://localhost:3000, sign up, promote yourself to admin (see above), and
 start recording installations.
 
+## 7. Deploy frontend on Infomaniak
+
+Host the Next.js app on Infomaniak Node.js; keep Supabase as the backend.
+
+See **[docs/INFOMANIAK.md](docs/INFOMANIAK.md)** for Manager settings, env vars, domain/SSL, and Auth URL configuration.
+
 ## Reports
 
 Admins manage schedules under **Reports**. Each schedule has:
