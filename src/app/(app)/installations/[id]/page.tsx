@@ -6,10 +6,41 @@ import { requireUser } from "@/lib/auth";
 import { CUSTOMER_FIELDS } from "@/lib/constants";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import type { Installation } from "@/lib/types";
+import type { SlotImage } from "@/components/image-uploader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteInstallationButton } from "@/components/delete-installation-button";
+
+function PhotoGrid({ images, emptyLabel }: { images: SlotImage[]; emptyLabel: string }) {
+  if (images.length === 0) {
+    return (
+      <div className="flex items-center justify-center rounded-md border border-dashed py-12 text-sm text-muted-foreground">
+        {emptyLabel}
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      {images.map((img) => (
+        <a
+          key={img.id}
+          href={img.url}
+          target="_blank"
+          rel="noreferrer"
+          className="aspect-square overflow-hidden rounded-md border bg-muted"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={img.url}
+            alt=""
+            className="h-full w-full object-cover transition-transform hover:scale-105"
+          />
+        </a>
+      ))}
+    </div>
+  );
+}
 
 export default async function InstallationDetailPage({
   params,
@@ -20,7 +51,7 @@ export default async function InstallationDetailPage({
   const [data, user] = await Promise.all([getInstallationWithImages(id), requireUser()]);
   if (!data) notFound();
 
-  const { installation, images } = data;
+  const { installation, sitePhotos, acceptanceForms, images } = data;
   const canEdit = user.isAdmin || installation.created_by === user.id;
   const allPaths = images.map((i) => i.path);
 
@@ -87,33 +118,19 @@ export default async function InstallationDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Site Photos ({images.length})</CardTitle>
+          <CardTitle>Site Photos ({sitePhotos.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          {images.length === 0 ? (
-            <div className="flex items-center justify-center rounded-md border border-dashed py-12 text-sm text-muted-foreground">
-              No photos
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {images.map((img) => (
-                <a
-                  key={img.id}
-                  href={img.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="aspect-square overflow-hidden rounded-md border bg-muted"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={img.url}
-                    alt="Evidence"
-                    className="h-full w-full object-cover transition-transform hover:scale-105"
-                  />
-                </a>
-              ))}
-            </div>
-          )}
+          <PhotoGrid images={sitePhotos} emptyLabel="No site photos" />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Acceptance Form ({acceptanceForms.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PhotoGrid images={acceptanceForms} emptyLabel="No acceptance form photos" />
         </CardContent>
       </Card>
     </div>

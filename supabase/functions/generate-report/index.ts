@@ -293,7 +293,9 @@ async function buildPdf(schedule: any, installations: any[], from: Date | null, 
           width: dims.w,
           height: dims.h,
         });
-        page.drawText(`Photo ${idx + 1}`, {
+        page.drawText(
+          img.slot === "acceptance_form" ? `Form ${idx + 1}` : `Photo ${idx + 1}`,
+          {
           x,
           y: y - 10,
           size: 6,

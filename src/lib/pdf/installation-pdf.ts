@@ -68,61 +68,82 @@ export async function buildInstallationPdf(
   if (col === 1) y = lineY - 12;
   y -= 10;
 
-  // Image evidence — flat photo grid
-  ensure(24);
-  page.drawLine({
-    start: { x: MARGIN, y },
-    end: { x: A4.w - MARGIN, y },
-    thickness: 1,
-    color: rgb(0.85, 0.85, 0.85),
-  });
-  y -= 16;
-  page.drawText(`Site Photos (${images.length})`, { x: MARGIN, y, size: 12, font: bold });
-  y -= 14;
-
-  if (images.length === 0) {
-    ensure(20);
-    page.drawText("No photos", { x: MARGIN, y, size: 9, font, color: rgb(0.55, 0.55, 0.55) });
-    return doc.save();
-  }
-
-  const embedded: { image: PDFImage; w: number; h: number }[] = [];
-  for (const img of images) {
-    const e = await embedImage(doc, img.bytes);
-    if (e) embedded.push(e);
-  }
-
-  const GRID_COLS = 3;
-  const GRID_GAP = 10;
-  const contentW = A4.w - MARGIN * 2;
-  const cellW = (contentW - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
-  const cellH = 120;
-
-  for (let i = 0; i < embedded.length; i++) {
-    const col = i % GRID_COLS;
-    if (col === 0) {
-      ensure(cellH + GRID_GAP);
-      y -= cellH;
-    }
-    const x = MARGIN + col * (cellW + GRID_GAP);
-    const t = embedded[i];
-    const dims = fit(t.w, t.h, cellW - 4, cellH - 4);
-    page.drawRectangle({
-      x,
+  // Site photos + acceptance form grids
+  async function drawPhotoSection(title: string, sectionImages: ImageInput[]) {
+    ensure(24);
+    page.drawLine({
+      start: { x: MARGIN, y },
+      end: { x: A4.w - MARGIN, y },
+      thickness: 1,
+      color: rgb(0.85, 0.85, 0.85),
+    });
+    y -= 16;
+    page.drawText(`${title} (${sectionImages.length})`, {
+      x: MARGIN,
       y,
-      width: cellW,
-      height: cellH,
-      borderColor: rgb(0.85, 0.85, 0.85),
-      borderWidth: 0.5,
+      size: 12,
+      font: bold,
     });
-    page.drawImage(t.image, {
-      x: x + (cellW - dims.w) / 2,
-      y: y + (cellH - dims.h) / 2,
-      width: dims.w,
-      height: dims.h,
-    });
-    if (col === GRID_COLS - 1) y -= GRID_GAP;
+    y -= 14;
+
+    if (sectionImages.length === 0) {
+      ensure(20);
+      page.drawText("No photos", {
+        x: MARGIN,
+        y,
+        size: 9,
+        font,
+        color: rgb(0.55, 0.55, 0.55),
+      });
+      y -= 16;
+      return;
+    }
+
+    const embedded: { image: PDFImage; w: number; h: number }[] = [];
+    for (const img of sectionImages) {
+      const e = await embedImage(doc, img.bytes);
+      if (e) embedded.push(e);
+    }
+
+    const GRID_COLS = 3;
+    const GRID_GAP = 10;
+    const contentW = A4.w - MARGIN * 2;
+    const cellW = (contentW - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
+    const cellH = 120;
+
+    for (let i = 0; i < embedded.length; i++) {
+      const colIdx = i % GRID_COLS;
+      if (colIdx === 0) {
+        ensure(cellH + GRID_GAP);
+        y -= cellH;
+      }
+      const x = MARGIN + colIdx * (cellW + GRID_GAP);
+      const t = embedded[i];
+      const dims = fit(t.w, t.h, cellW - 4, cellH - 4);
+      page.drawRectangle({
+        x,
+        y,
+        width: cellW,
+        height: cellH,
+        borderColor: rgb(0.85, 0.85, 0.85),
+        borderWidth: 0.5,
+      });
+      page.drawImage(t.image, {
+        x: x + (cellW - dims.w) / 2,
+        y: y + (cellH - dims.h) / 2,
+        width: dims.w,
+        height: dims.h,
+      });
+      if (colIdx === GRID_COLS - 1) y -= GRID_GAP;
+    }
+    if (embedded.length % GRID_COLS !== 0) y -= GRID_GAP;
   }
+
+  const sitePhotos = images.filter((img) => img.slot !== "acceptance_form");
+  const acceptanceForms = images.filter((img) => img.slot === "acceptance_form");
+
+  await drawPhotoSection("Site Photos", sitePhotos);
+  await drawPhotoSection("Acceptance Form", acceptanceForms);
 
   return doc.save();
 }

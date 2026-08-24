@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { Trash2, Upload, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { DEFAULT_IMAGE_SLOT, STORAGE_BUCKET } from "@/lib/constants";
+import { STORAGE_BUCKET } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 
 export interface SlotImage {
@@ -16,7 +16,12 @@ interface Props {
   /** create = buffer files in parent; edit = upload immediately. */
   mode: "create" | "edit";
   installationId?: string;
+  /** DB slot key (e.g. photo, acceptance_form). */
+  slot: string;
   existing?: SlotImage[];
+  hint?: string;
+  addLabel?: string;
+  emptyLabel?: string;
   /** create-mode: report buffered files upward. */
   onPendingChange?: (files: File[]) => void;
 }
@@ -24,7 +29,11 @@ interface Props {
 export function ImageUploader({
   mode,
   installationId,
+  slot,
   existing = [],
+  hint = "You can add or remove photos anytime.",
+  addLabel = "Add photos",
+  emptyLabel = "Tap to select photos",
   onPendingChange,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -54,7 +63,7 @@ export function ImageUploader({
     try {
       for (const file of list) {
         const ext = file.name.split(".").pop() || "jpg";
-        const path = `${installationId}/${DEFAULT_IMAGE_SLOT}-${Date.now()}-${Math.random()
+        const path = `${installationId}/${slot}-${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 8)}.${ext}`;
 
@@ -67,7 +76,7 @@ export function ImageUploader({
           .from("installation_images")
           .insert({
             installation_id: installationId,
-            slot: DEFAULT_IMAGE_SLOT,
+            slot,
             storage_path: path,
           })
           .select("id")
@@ -115,9 +124,7 @@ export function ImageUploader({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">
-          Upload all site photos together. You can add or remove photos anytime.
-        </p>
+        <p className="text-sm text-muted-foreground">{hint}</p>
         <Button
           type="button"
           variant="outline"
@@ -126,7 +133,7 @@ export function ImageUploader({
           disabled={busy}
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-          Add photos
+          {addLabel}
         </Button>
         <input
           ref={inputRef}
@@ -149,7 +156,7 @@ export function ImageUploader({
           >
             {img.url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={img.url} alt="Evidence" className="h-full w-full object-cover" />
+              <img src={img.url} alt="" className="h-full w-full object-cover" />
             ) : null}
             <button
               type="button"
@@ -190,7 +197,7 @@ export function ImageUploader({
             className="col-span-2 flex aspect-[2/1] flex-col items-center justify-center gap-2 rounded-md border border-dashed text-sm text-muted-foreground hover:bg-muted/50 sm:col-span-3 md:col-span-4 lg:col-span-5"
           >
             <Upload className="h-6 w-6" />
-            Tap to select photos
+            {emptyLabel}
           </button>
         )}
       </div>

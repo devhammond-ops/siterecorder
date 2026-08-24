@@ -7,7 +7,7 @@ export interface CustomerFieldDef {
   key: string;
   label: string;
   type: FieldType;
-  /** Required when submitting a complete (non-draft) entry. */
+  /** Required on save. */
   required?: boolean;
   placeholder?: string;
   /** Width hint for the responsive form grid. */
@@ -43,7 +43,6 @@ export const CUSTOMER_FIELDS: CustomerFieldDef[] = [
 ];
 
 export const INSTALLATION_STATUSES = [
-  "Draft",
   "Pending",
   "In Progress",
   "Good",
@@ -53,10 +52,12 @@ export const INSTALLATION_STATUSES = [
 
 export type InstallationStatus = (typeof INSTALLATION_STATUSES)[number];
 
-export const DRAFT_STATUS = "Draft";
+/** installation_images.slot values */
+export const SITE_PHOTOS_SLOT = "photo";
+export const ACCEPTANCE_FORM_SLOT = "acceptance_form";
 
-/** Stored in installation_images.slot for new uploads (DB column kept for compatibility). */
-export const DEFAULT_IMAGE_SLOT = "photo";
+/** @deprecated use SITE_PHOTOS_SLOT */
+export const DEFAULT_IMAGE_SLOT = SITE_PHOTOS_SLOT;
 
 export const STORAGE_BUCKET = "installation-images";
 export const REPORTS_BUCKET = "reports";

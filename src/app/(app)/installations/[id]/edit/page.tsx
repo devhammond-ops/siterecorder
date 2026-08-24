@@ -30,7 +30,8 @@ export default async function EditInstallationPage({
       <InstallationForm
         mode="edit"
         installation={data.installation}
-        images={data.images}
+        sitePhotos={data.sitePhotos}
+        acceptanceForms={data.acceptanceForms}
       />
     </div>
   );

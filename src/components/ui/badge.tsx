@@ -2,7 +2,6 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const statusColors: Record<string, string> = {
-  Draft: "bg-slate-100 text-slate-700 border-slate-200",
   Good: "bg-green-100 text-green-800 border-green-200",
   "In Progress": "bg-blue-100 text-blue-800 border-blue-200",
   Pending: "bg-amber-100 text-amber-800 border-amber-200",
