@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Trash2, Upload, Loader2 } from "lucide-react";
+import { Camera, Trash2, Upload, Loader2, Images } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { STORAGE_BUCKET } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
@@ -20,23 +20,23 @@ interface Props {
   slot: string;
   existing?: SlotImage[];
   hint?: string;
-  addLabel?: string;
-  emptyLabel?: string;
   /** create-mode: report buffered files upward. */
   onPendingChange?: (files: File[]) => void;
 }
+
+/** Prefer gallery/files; avoid image/* alone which some Androids treat as capture. */
+const GALLERY_ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic";
 
 export function ImageUploader({
   mode,
   installationId,
   slot,
   existing = [],
-  hint = "You can add or remove photos anytime.",
-  addLabel = "Add photos",
-  emptyLabel = "Tap to select photos",
+  hint = "Choose photos from your device or take new ones with the camera.",
   onPendingChange,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const [images, setImages] = useState<SlotImage[]>(existing);
   const [pending, setPending] = useState<{ file: File; preview: string }[]>([]);
   const [busy, setBusy] = useState(false);
@@ -45,7 +45,13 @@ export function ImageUploader({
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     setError(null);
-    const list = Array.from(files);
+    const list = Array.from(files).filter(
+      (f) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name)
+    );
+    if (list.length === 0) {
+      setError("Please select image files only.");
+      return;
+    }
 
     if (mode === "create") {
       const next = [
@@ -96,7 +102,8 @@ export function ImageUploader({
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setBusy(false);
-      if (inputRef.current) inputRef.current.value = "";
+      if (galleryRef.current) galleryRef.current.value = "";
+      if (cameraRef.current) cameraRef.current.value = "";
     }
   }
 
@@ -121,29 +128,56 @@ export function ImageUploader({
     onPendingChange?.(next.map((p) => p.file));
   }
 
+  const actionButtons = (
+    <div className="flex flex-wrap gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => galleryRef.current?.click()}
+        disabled={busy}
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Images className="h-4 w-4" />}
+        Choose from device
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => cameraRef.current?.click()}
+        disabled={busy}
+      >
+        <Camera className="h-4 w-4" />
+        Take photo
+      </Button>
+    </div>
+  );
+
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <p className="text-sm text-muted-foreground">{hint}</p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => inputRef.current?.click()}
-          disabled={busy}
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-          {addLabel}
-        </Button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
-        />
+        {actionButtons}
       </div>
+
+      {/* Gallery / files — no capture attribute (multi-select). */}
+      <input
+        ref={galleryRef}
+        type="file"
+        accept={GALLERY_ACCEPT}
+        multiple
+        className="hidden"
+        onChange={(e) => handleFiles(e.target.files)}
+      />
+      {/* Camera — capture only when user taps Take photo. */}
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => handleFiles(e.target.files)}
+      />
 
       {error && <p className="text-xs text-destructive">{error}</p>}
 
@@ -190,14 +224,11 @@ export function ImageUploader({
         ))}
 
         {images.length === 0 && pending.length === 0 && (
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            className="col-span-2 flex aspect-[2/1] flex-col items-center justify-center gap-2 rounded-md border border-dashed text-sm text-muted-foreground hover:bg-muted/50 sm:col-span-3 md:col-span-4 lg:col-span-5"
-          >
+          <div className="col-span-2 flex aspect-[2/1] flex-col items-center justify-center gap-3 rounded-md border border-dashed p-4 text-sm text-muted-foreground sm:col-span-3 md:col-span-4 lg:col-span-5">
             <Upload className="h-6 w-6" />
-            {emptyLabel}
-          </button>
+            <p className="text-center">No photos yet</p>
+            {actionButtons}
+          </div>
         )}
       </div>
     </div>

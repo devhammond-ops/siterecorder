@@ -223,9 +223,7 @@ export function InstallationForm({
             installationId={installation?.id}
             slot={SITE_PHOTOS_SLOT}
             existing={sitePhotos}
-            hint="Upload site photos from your gallery or camera. You can select multiple images."
-            addLabel="Add photos"
-            emptyLabel="Tap to choose photos"
+            hint="Use Choose from device to pick multiple photos from your gallery, or Take photo for the camera."
             onPendingChange={setPendingSitePhotos}
           />
           {mode === "create" && (
@@ -248,9 +246,7 @@ export function InstallationForm({
             installationId={installation?.id}
             slot={ACCEPTANCE_FORM_SLOT}
             existing={acceptanceForms}
-            hint="Upload acceptance form photos from your gallery or camera. You can select multiple images."
-            addLabel="Add photos"
-            emptyLabel="Tap to choose photos"
+            hint="Use Choose from device for gallery photos, or Take photo for the camera."
             onPendingChange={setPendingAcceptance}
           />
           {mode === "create" && (
