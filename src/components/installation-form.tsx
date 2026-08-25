@@ -223,9 +223,9 @@ export function InstallationForm({
             installationId={installation?.id}
             slot={SITE_PHOTOS_SLOT}
             existing={sitePhotos}
-            hint="Upload all site photos together. You can add or remove photos anytime."
+            hint="Upload site photos from your gallery or camera. You can select multiple images."
             addLabel="Add photos"
-            emptyLabel="Tap to select photos"
+            emptyLabel="Tap to choose photos"
             onPendingChange={setPendingSitePhotos}
           />
           {mode === "create" && (
@@ -248,9 +248,9 @@ export function InstallationForm({
             installationId={installation?.id}
             slot={ACCEPTANCE_FORM_SLOT}
             existing={acceptanceForms}
-            hint="Upload a photo of the signed acceptance form. You can add or remove photos anytime."
+            hint="Upload acceptance form photos from your gallery or camera. You can select multiple images."
             addLabel="Add photos"
-            emptyLabel="Tap to select photos"
+            emptyLabel="Tap to choose photos"
             onPendingChange={setPendingAcceptance}
           />
           {mode === "create" && (
