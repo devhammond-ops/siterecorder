@@ -21,7 +21,6 @@ const INFO_FIELDS: { key: string; label: string }[] = [
   { key: "date_order_received", label: "Order Received" },
   { key: "date_installation", label: "Installed" },
   { key: "msisdn", label: "MSISDN" },
-  { key: "fttx_number", label: "FTTX #" },
   { key: "customer_phone", label: "Phone" },
   { key: "customer_address", label: "Address" },
   { key: "gps_address", label: "Ghana Post Address" },

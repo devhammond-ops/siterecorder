@@ -21,6 +21,12 @@ export function Nav({ user }: { user: CurrentUser }) {
             >
               Installations
             </Link>
+            <Link
+              href="/profile"
+              className="rounded-md px-3 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              Profile
+            </Link>
             {user.isAdmin && (
               <>
                 <Link
