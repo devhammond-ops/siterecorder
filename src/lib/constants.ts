@@ -21,7 +21,6 @@ export const CUSTOMER_FIELDS: CustomerFieldDef[] = [
   { key: "date_order_received", label: "Date Order Received", type: "date", required: true, span: 1 },
   { key: "date_installation", label: "Date Installation Activity", type: "date", required: true, span: 1 },
   { key: "msisdn", label: "MSISDN", type: "text", required: true, span: 1 },
-  { key: "fttx_number", label: "FTTX Number", type: "text", required: true, span: 1 },
   { key: "customer_phone", label: "Customer Phone Details", type: "text", required: true, span: 1 },
   { key: "customer_address", label: "Customer Address", type: "textarea", required: true, span: 2 },
   { key: "gps_address", label: "Ghana Post Address", type: "text", required: true, span: 2 },

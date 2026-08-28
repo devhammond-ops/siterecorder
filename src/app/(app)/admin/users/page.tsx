@@ -37,6 +37,7 @@ export default async function UsersPage() {
               <thead className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 font-medium">Name</th>
+                  <th className="px-3 py-2 font-medium">Phone</th>
                   <th className="px-3 py-2 font-medium">Joined</th>
                   <th className="px-3 py-2 font-medium">Role</th>
                 </tr>
@@ -50,6 +51,7 @@ export default async function UsersPage() {
                         <span className="ml-2 text-xs text-muted-foreground">(you)</span>
                       )}
                     </td>
+                    <td className="px-3 py-2 text-muted-foreground">{p.phone || "-"}</td>
                     <td className="px-3 py-2 text-muted-foreground">
                       {formatDate(p.created_at)}
                     </td>

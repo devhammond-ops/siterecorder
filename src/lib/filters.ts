@@ -34,7 +34,6 @@ export function applyInstallationFilters<T = any>(query: T, filters: Installatio
           `customer_name.ilike.${like}`,
           `order_number.ilike.${like}`,
           `msisdn.ilike.${like}`,
-          `fttx_number.ilike.${like}`,
           `customer_address.ilike.${like}`,
           `customer_phone.ilike.${like}`,
         ].join(",")
