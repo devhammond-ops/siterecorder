@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Save } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -11,6 +11,7 @@ import {
   SITE_PHOTOS_SLOT,
   STORAGE_BUCKET,
 } from "@/lib/constants";
+import { formatInstallationSaveError } from "@/lib/installations-client";
 import type { Installation } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,12 +30,18 @@ interface Props {
 
 type FormValues = Record<string, string>;
 
-async function uploadFiles(
+interface StagedUpload {
+  path: string;
+  slot: string;
+}
+
+async function stageFilesToStorage(
   supabase: ReturnType<typeof createClient>,
   installationId: string,
   slot: string,
   files: File[]
-) {
+): Promise<StagedUpload[]> {
+  const staged: StagedUpload[] = [];
   for (const file of files) {
     const ext = file.name.split(".").pop() || "jpg";
     const path = `${installationId}/${slot}-${Date.now()}-${Math.random()
@@ -44,13 +51,24 @@ async function uploadFiles(
       .from(STORAGE_BUCKET)
       .upload(path, file, { upsert: false });
     if (upErr) throw upErr;
-    const { error: imgErr } = await supabase.from("installation_images").insert({
-      installation_id: installationId,
-      slot,
-      storage_path: path,
-    });
-    if (imgErr) throw imgErr;
+    staged.push({ path, slot });
   }
+  return staged;
+}
+
+async function removeStagedFiles(
+  supabase: ReturnType<typeof createClient>,
+  staged: StagedUpload[]
+) {
+  if (staged.length === 0) return;
+  await supabase.storage.from(STORAGE_BUCKET).remove(staged.map((s) => s.path));
+}
+
+async function removeInstallationRow(
+  supabase: ReturnType<typeof createClient>,
+  installationId: string
+) {
+  await supabase.from("installations").delete().eq("id", installationId);
 }
 
 export function InstallationForm({
@@ -60,6 +78,7 @@ export function InstallationForm({
   acceptanceForms = [],
 }: Props) {
   const router = useRouter();
+  const submittingRef = useRef(false);
 
   const initial: FormValues = {};
   for (const f of CUSTOMER_FIELDS) {
@@ -105,14 +124,16 @@ export function InstallationForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
+    if (submittingRef.current) return;
 
+    setError(null);
     const validationError = validate();
     if (validationError) {
       setError(validationError);
       return;
     }
 
+    submittingRef.current = true;
     setSaving(true);
     const supabase = createClient();
 
@@ -123,19 +144,52 @@ export function InstallationForm({
         } = await supabase.auth.getUser();
         if (!user) throw new Error("Not authenticated");
 
-        const { data: row, error: insErr } = await supabase
-          .from("installations")
-          .insert({ ...toPayload(), created_by: user.id })
-          .select("id")
-          .single();
-        if (insErr) throw insErr;
+        const installationId = crypto.randomUUID();
+        let staged: StagedUpload[] = [];
+        let rowInserted = false;
 
-        const installationId = row.id as string;
-        await uploadFiles(supabase, installationId, SITE_PHOTOS_SLOT, pendingSitePhotos);
-        await uploadFiles(supabase, installationId, ACCEPTANCE_FORM_SLOT, pendingAcceptance);
+        try {
+          staged = [
+            ...(await stageFilesToStorage(
+              supabase,
+              installationId,
+              SITE_PHOTOS_SLOT,
+              pendingSitePhotos
+            )),
+            ...(await stageFilesToStorage(
+              supabase,
+              installationId,
+              ACCEPTANCE_FORM_SLOT,
+              pendingAcceptance
+            )),
+          ];
 
-        router.push(`/installations/${installationId}`);
-        router.refresh();
+          const { error: insErr } = await supabase.from("installations").insert({
+            id: installationId,
+            ...toPayload(),
+            created_by: user.id,
+          });
+          if (insErr) throw insErr;
+          rowInserted = true;
+
+          for (const item of staged) {
+            const { error: imgErr } = await supabase.from("installation_images").insert({
+              installation_id: installationId,
+              slot: item.slot,
+              storage_path: item.path,
+            });
+            if (imgErr) throw imgErr;
+          }
+
+          router.push(`/installations/${installationId}`);
+          router.refresh();
+        } catch (innerErr) {
+          if (rowInserted) {
+            await removeInstallationRow(supabase, installationId);
+          }
+          await removeStagedFiles(supabase, staged);
+          throw innerErr;
+        }
       } else if (installation) {
         const { error: updErr } = await supabase
           .from("installations")
@@ -147,7 +201,9 @@ export function InstallationForm({
         router.refresh();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+      setError(formatInstallationSaveError(err));
+    } finally {
+      submittingRef.current = false;
       setSaving(false);
     }
   }
@@ -206,7 +262,8 @@ export function InstallationForm({
             </div>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            All fields are required. You can edit the entry again after saving.
+            All fields are required. MSISDN must be unique — each number can only have one
+            installation record.
           </p>
         </CardContent>
       </Card>
