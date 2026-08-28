@@ -18,7 +18,7 @@ GitHub repo: `https://github.com/devhammond-ops/siterecorder.git`
 | Node.js version | **20** or **22** (prefer 22 if available) |
 | Package manager | npm |
 | Execution folder | project root (where `package.json` is) |
-| Install / build | `npm install && npm run build` |
+| Install / build | `cp ~/env/siterecorder.env .env.production && npm install && npm run build` |
 | Start / run | `npm start` |
 | Listening port | Use the port Infomaniak assigns (often `3000`). Must match Manager **and** `PORT`. |
 
@@ -26,9 +26,18 @@ GitHub repo: `https://github.com/devhammond-ops/siterecorder.git`
 
 5. Save, run **Build**, then **Start** the application. Watch the console for errors.
 
-## 2. Environment variables (Infomaniak site settings)
+## 2. Environment variables (critical — survives rebuilds)
 
-Copy from your working local `.env.local` (do **not** commit these):
+Git deploys **overwrite** the site folder, so a `.env.production` created only inside the site is wiped on the next Build. Keep secrets **outside** the site and copy them in at build time.
+
+### One-time: create a persistent env file (SSH)
+
+```bash
+mkdir -p ~/env
+nano ~/env/siterecorder.env
+```
+
+Paste (from your local `.env.local` — do **not** commit):
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR-REF.supabase.co
@@ -38,7 +47,22 @@ RESEND_API_KEY=
 REPORT_FROM_EMAIL=reports@yourdomain.com
 ```
 
-After changing env vars, **restart** the Node.js app.
+Save: `Ctrl+O`, Enter, `Ctrl+X`.
+
+### Build command in Infomaniak Manager
+
+Set **Build** to:
+
+```bash
+cp ~/env/siterecorder.env .env.production && npm install && npm run build
+```
+
+`NEXT_PUBLIC_*` must exist **during build**. After changing the build command or env file: **Build** → **Restart**.
+
+### If the site shows “URL and Key are required”
+
+The env file was missing for that build. Recreate/fix `~/env/siterecorder.env`, confirm the build command includes the `cp`, then Build + Restart again.
+
 
 ## 3. Domain + SSL
 
@@ -67,7 +91,7 @@ After changing env vars, **restart** the Node.js app.
 |---------|--------|
 | Build fails | Console logs; Node 20/22; `npm install && npm run build` locally |
 | App won’t start | Port in Manager matches `PORT`; start command is `npm start` |
-| Auth Failed to fetch | `NEXT_PUBLIC_SUPABASE_URL` resolves in browser (`/auth/v1/health`); Auth Site URL is your HTTPS domain |
+| App error / “URL and Key are required” | Env missing after Git rebuild — restore `~/env/siterecorder.env` and build with `cp … .env.production` (see §2) |
 | Images fail | Supabase Storage buckets + RLS from migrations; service role / signed URLs |
 
 ## What stays on Supabase
