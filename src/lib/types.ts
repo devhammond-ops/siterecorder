@@ -28,6 +28,8 @@ export interface Installation {
   cable_length: string | null;
   dead_end: string | null;
   status: string;
+  status_comments: string | null;
+  comments: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

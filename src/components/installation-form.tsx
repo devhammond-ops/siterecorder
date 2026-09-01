@@ -85,6 +85,8 @@ export function InstallationForm({
     initial[f.key] = (installation?.[f.key as keyof Installation] as string) ?? "";
   }
   initial.status = installation?.status ?? "Pending";
+  initial.status_comments = installation?.status_comments ?? "";
+  initial.comments = installation?.comments ?? "";
 
   const [values, setValues] = useState<FormValues>(initial);
   const [pendingSitePhotos, setPendingSitePhotos] = useState<File[]>([]);
@@ -102,6 +104,8 @@ export function InstallationForm({
       const raw = values[f.key]?.trim();
       payload[f.key] = raw === "" ? null : raw;
     }
+    payload.status_comments = values.status_comments?.trim() || null;
+    payload.comments = values.comments?.trim() || null;
     return payload;
   }
 
@@ -112,12 +116,6 @@ export function InstallationForm({
     }
     if (!values.status?.trim()) {
       return "Status is required.";
-    }
-    if (sitePhotos.length + pendingSitePhotos.length === 0) {
-      return "Add at least one site photo.";
-    }
-    if (acceptanceForms.length + pendingAcceptance.length === 0) {
-      return "Add at least one acceptance form photo.";
     }
     return null;
   }
@@ -260,19 +258,47 @@ export function InstallationForm({
                 ))}
               </Select>
             </div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <Label htmlFor="status_comments" className="mb-1.5 block">
+                Status Comments
+              </Label>
+              <Textarea
+                id="status_comments"
+                value={values.status_comments}
+                onChange={(e) => setField("status_comments", e.target.value)}
+                placeholder="Notes about the installation status (e.g. reason for failure, rework details)"
+                rows={3}
+              />
+            </div>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            All fields are required. MSISDN must be unique — each number can only have one
-            installation record.
+            Required fields are marked with *. MSISDN must be unique. Photos are optional when
+            the installation is not yet complete.
           </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>
-            Site Photos <span className="text-destructive">*</span>
-          </CardTitle>
+          <CardTitle>Comments</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Label htmlFor="comments" className="mb-1.5 block">
+            Comments
+          </Label>
+          <Textarea
+            id="comments"
+            value={values.comments}
+            onChange={(e) => setField("comments", e.target.value)}
+            placeholder="Any additional notes about this installation"
+            rows={4}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Site Photos</CardTitle>
         </CardHeader>
         <CardContent>
           <ImageUploader
@@ -285,7 +311,8 @@ export function InstallationForm({
           />
           {mode === "create" && (
             <p className="mt-3 text-xs text-muted-foreground">
-              Photos are uploaded when you save the entry. At least one site photo is required.
+              Photos are uploaded when you save the entry. You can add them later if the
+              installation is not complete yet.
             </p>
           )}
         </CardContent>
@@ -293,9 +320,7 @@ export function InstallationForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>
-            Acceptance Form <span className="text-destructive">*</span>
-          </CardTitle>
+          <CardTitle>Acceptance Form</CardTitle>
         </CardHeader>
         <CardContent>
           <ImageUploader
@@ -308,8 +333,7 @@ export function InstallationForm({
           />
           {mode === "create" && (
             <p className="mt-3 text-xs text-muted-foreground">
-              Photos are uploaded when you save the entry. At least one acceptance form photo is
-              required.
+              Optional — add when the customer acceptance form is available.
             </p>
           )}
         </CardContent>
