@@ -40,6 +40,8 @@ export async function GET(request: NextRequest) {
   const columns = [
     ...CUSTOMER_FIELDS.map((f) => ({ header: f.label, key: f.key, width: 22 })),
     { header: "Status", key: "status", width: 14 },
+    { header: "Status Comments", key: "status_comments", width: 28 },
+    { header: "Comments", key: "comments", width: 28 },
     { header: "Created At", key: "created_at", width: 20 },
   ];
   sheet.columns = columns;
@@ -58,6 +60,8 @@ export async function GET(request: NextRequest) {
       record[f.key] = (row[f.key as keyof Installation] as string) ?? "";
     }
     record.status = row.status;
+    record.status_comments = row.status_comments ?? "";
+    record.comments = row.comments ?? "";
     record.created_at = row.created_at ? new Date(row.created_at).toLocaleString() : "";
     sheet.addRow(record);
   }

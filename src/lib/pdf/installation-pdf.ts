@@ -68,6 +68,26 @@ export async function buildInstallationPdf(
   if (col === 1) y = lineY - 12;
   y -= 10;
 
+  function drawTextBlock(label: string, text: string) {
+    ensure(40);
+    page.drawText(label, { x: MARGIN, y, size: 8, font: bold });
+    y -= 12;
+    const lines = wrapText(text, 95);
+    for (const line of lines) {
+      ensure(12);
+      page.drawText(line, { x: MARGIN, y, size: 8, font });
+      y -= 10;
+    }
+    y -= 6;
+  }
+
+  if (installation.status_comments?.trim()) {
+    drawTextBlock("Status Comments:", installation.status_comments.trim());
+  }
+  if (installation.comments?.trim()) {
+    drawTextBlock("Comments:", installation.comments.trim());
+  }
+
   // Site photos + acceptance form grids
   async function drawPhotoSection(title: string, sectionImages: ImageInput[]) {
     ensure(24);
@@ -189,6 +209,23 @@ function fit(w: number, h: number, maxW: number, maxH: number) {
 
 function truncate(s: string, n: number) {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+
+function wrapText(text: string, maxChars: number): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (next.length > maxChars && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.length > 0 ? lines : [""];
 }
 
 /** Download image bytes from Supabase Storage for PDF embedding. */

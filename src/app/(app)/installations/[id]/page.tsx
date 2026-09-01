@@ -112,9 +112,34 @@ export default async function InstallationDetailPage({
                 </div>
               );
             })}
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Status
+              </dt>
+              <dd className="mt-0.5 text-sm">{installation.status}</dd>
+            </div>
+            {installation.status_comments && (
+              <div className="sm:col-span-2 lg:col-span-3">
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Status Comments
+                </dt>
+                <dd className="mt-0.5 whitespace-pre-wrap text-sm">{installation.status_comments}</dd>
+              </div>
+            )}
           </dl>
         </CardContent>
       </Card>
+
+      {installation.comments && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Comments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="whitespace-pre-wrap text-sm">{installation.comments}</p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

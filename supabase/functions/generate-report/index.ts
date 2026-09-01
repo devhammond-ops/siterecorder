@@ -18,6 +18,8 @@ const REPORT_FROM_EMAIL = Deno.env.get("REPORT_FROM_EMAIL") ?? "reports@example.
 const INFO_FIELDS: { key: string; label: string }[] = [
   { key: "order_number", label: "Order #" },
   { key: "status", label: "Status" },
+  { key: "status_comments", label: "Status Comments" },
+  { key: "comments", label: "Comments" },
   { key: "date_order_received", label: "Order Received" },
   { key: "date_installation", label: "Installed" },
   { key: "msisdn", label: "MSISDN" },
