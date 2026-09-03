@@ -1,4 +1,4 @@
-export type UserRole = "technician" | "admin";
+export type UserRole = "technician" | "team_leader" | "admin";
 
 export interface Profile {
   id: string;
@@ -27,6 +27,7 @@ export interface Installation {
   atb_power_readings: string | null;
   cable_length: string | null;
   dead_end: string | null;
+  site_id: string | null;
   status: string;
   status_comments: string | null;
   comments: string | null;
@@ -75,4 +76,37 @@ export interface ReportRun {
   pdf_path: string | null;
   status: string;
   error: string | null;
+}
+
+export interface HsqDailyReport {
+  id: string;
+  report_date: string;
+  site_id: string;
+  location: string | null;
+  task_description: string;
+  prepared_by: string;
+  prepared_by_name: string;
+  prepared_by_signature: string;
+  supervisor_id: string | null;
+  supervisor_name: string | null;
+  supervisor_signature: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HsqReportWorker {
+  id: string;
+  report_id: string;
+  user_id: string | null;
+  worker_name: string;
+  worker_signature: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface HsqWorkerLookup {
+  user_id: string;
+  full_name: string;
+  signature: string;
 }

@@ -39,6 +39,7 @@ export const CUSTOMER_FIELDS: CustomerFieldDef[] = [
   { key: "atb_power_readings", label: "ATB Power Readings", type: "text", required: true, span: 1 },
   { key: "cable_length", label: "Cable Length", type: "text", required: true, span: 1 },
   { key: "dead_end", label: "Dead End", type: "text", required: true, span: 1 },
+  { key: "site_id", label: "Site ID", type: "text", required: false, placeholder: "Worksite code for HSQ reports", span: 1 },
 ];
 
 export const INSTALLATION_STATUSES = [

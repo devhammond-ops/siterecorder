@@ -45,6 +45,7 @@ export function UserRoleSelect({
       onChange={(e) => change(e.target.value as UserRole)}
     >
       <option value="technician">technician</option>
+      <option value="team_leader">team_leader</option>
       <option value="admin">admin</option>
     </Select>
   );
