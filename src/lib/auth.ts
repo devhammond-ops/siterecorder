@@ -8,6 +8,8 @@ export interface CurrentUser {
   profile: Profile | null;
   role: UserRole;
   isAdmin: boolean;
+  isTeamLeader: boolean;
+  canManageHsq: boolean;
 }
 
 /**
@@ -30,19 +32,31 @@ export async function requireUser(): Promise<CurrentUser> {
     .maybeSingle();
 
   const role: UserRole = (profile?.role as UserRole) ?? "technician";
+  const isAdmin = role === "admin";
+  const isTeamLeader = role === "team_leader";
 
   return {
     id: user.id,
     email: user.email ?? null,
     profile: (profile as Profile) ?? null,
     role,
-    isAdmin: role === "admin",
+    isAdmin,
+    isTeamLeader,
+    canManageHsq: isAdmin || isTeamLeader,
   };
 }
 
 export async function requireAdmin(): Promise<CurrentUser> {
   const user = await requireUser();
   if (!user.isAdmin) {
+    redirect("/");
+  }
+  return user;
+}
+
+export async function requireHsqAccess(): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!user.canManageHsq) {
     redirect("/");
   }
   return user;

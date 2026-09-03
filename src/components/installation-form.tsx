@@ -11,6 +11,7 @@ import {
   SITE_PHOTOS_SLOT,
   STORAGE_BUCKET,
 } from "@/lib/constants";
+import { usePersistedState } from "@/lib/form-draft";
 import { formatInstallationSaveError } from "@/lib/installations-client";
 import type { Installation } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,17 @@ async function removeInstallationRow(
   await supabase.from("installations").delete().eq("id", installationId);
 }
 
+function buildInitialValues(installation?: Installation): FormValues {
+  const initial: FormValues = {};
+  for (const f of CUSTOMER_FIELDS) {
+    initial[f.key] = (installation?.[f.key as keyof Installation] as string) ?? "";
+  }
+  initial.status = installation?.status ?? "Pending";
+  initial.status_comments = installation?.status_comments ?? "";
+  initial.comments = installation?.comments ?? "";
+  return initial;
+}
+
 export function InstallationForm({
   mode,
   installation,
@@ -79,16 +91,14 @@ export function InstallationForm({
 }: Props) {
   const router = useRouter();
   const submittingRef = useRef(false);
+  const draftKey =
+    mode === "create" ? "installation:new" : `installation:${installation?.id ?? "edit"}`;
 
-  const initial: FormValues = {};
-  for (const f of CUSTOMER_FIELDS) {
-    initial[f.key] = (installation?.[f.key as keyof Installation] as string) ?? "";
-  }
-  initial.status = installation?.status ?? "Pending";
-  initial.status_comments = installation?.status_comments ?? "";
-  initial.comments = installation?.comments ?? "";
-
-  const [values, setValues] = useState<FormValues>(initial);
+  const [values, setValues, clearValuesDraft, draftReady] = usePersistedState<FormValues>(
+    draftKey,
+    buildInitialValues(installation),
+    true
+  );
   const [pendingSitePhotos, setPendingSitePhotos] = useState<File[]>([]);
   const [pendingAcceptance, setPendingAcceptance] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
@@ -110,7 +120,9 @@ export function InstallationForm({
   }
 
   function validate(): string | null {
-    const missing = CUSTOMER_FIELDS.filter((f) => !values[f.key]?.trim()).map((f) => f.label);
+    const missing = CUSTOMER_FIELDS.filter(
+      (f) => f.required !== false && !values[f.key]?.trim()
+    ).map((f) => f.label);
     if (missing.length > 0) {
       return `Please fill in all fields. Missing: ${missing.join(", ")}.`;
     }
@@ -179,6 +191,7 @@ export function InstallationForm({
             if (imgErr) throw imgErr;
           }
 
+          clearValuesDraft();
           router.push(`/installations/${installationId}`);
           router.refresh();
         } catch (innerErr) {
@@ -195,6 +208,7 @@ export function InstallationForm({
           .eq("id", installation.id);
         if (updErr) throw updErr;
 
+        clearValuesDraft();
         router.push(`/installations/${installation.id}`);
         router.refresh();
       }
@@ -221,7 +235,7 @@ export function InstallationForm({
               >
                 <Label htmlFor={f.key} className="mb-1.5 block">
                   {f.label}
-                  <span className="text-destructive"> *</span>
+                  {f.required !== false && <span className="text-destructive"> *</span>}
                 </Label>
                 {f.type === "textarea" ? (
                   <Textarea
@@ -274,6 +288,7 @@ export function InstallationForm({
           <p className="mt-3 text-xs text-muted-foreground">
             Required fields are marked with *. MSISDN must be unique. Photos are optional when
             the installation is not yet complete.
+            {draftReady ? " Your entries are kept if the page reloads before you save." : null}
           </p>
         </CardContent>
       </Card>

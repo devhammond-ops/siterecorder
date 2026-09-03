@@ -13,3 +13,8 @@ export function initialsFromName(name: string): string {
   const last = parts[parts.length - 1][0];
   return `${first}${last}`.toUpperCase();
 }
+
+export function profileSignature(fullName: string | null | undefined): string {
+  if (!fullName?.trim()) return "?";
+  return initialsFromName(fullName.trim());
+}

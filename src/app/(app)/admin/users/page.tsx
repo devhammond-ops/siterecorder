@@ -20,7 +20,7 @@ export default async function UsersPage() {
       <div>
         <h1 className="text-2xl font-bold">Users</h1>
         <p className="text-sm text-muted-foreground">
-          Manage technician and admin access.
+          Manage technician, team leader, and admin access.
         </p>
       </div>
 
@@ -28,7 +28,7 @@ export default async function UsersPage() {
         <CardHeader>
           <CardTitle>Team members</CardTitle>
           <CardDescription>
-            Admins can create report schedules and edit any installation.
+            Admins supervise HSQ reports and manage schedules. Team leaders create daily HSQ reports.
           </CardDescription>
         </CardHeader>
         <CardContent>
