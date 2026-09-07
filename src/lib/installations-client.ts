@@ -5,6 +5,12 @@ export function formatInstallationSaveError(err: unknown): string {
     if (e.code === "23505") {
       return "An installation with this MSISDN already exists.";
     }
+    if (
+      e.message &&
+      /row-level security|violates row-level security/i.test(e.message)
+    ) {
+      return "Could not save — permission was denied. Try again, or sign out and sign back in.";
+    }
     if (e.message) return e.message;
   }
   if (err instanceof Error) return err.message;
