@@ -154,11 +154,21 @@ export function InstallationForm({
         } = await supabase.auth.getUser();
         if (!user) throw new Error("Not authenticated");
 
+        // Insert the installation first — storage RLS requires the parent row
+        // to exist before photos can be uploaded under its folder.
         const installationId = crypto.randomUUID();
         let staged: StagedUpload[] = [];
         let rowInserted = false;
 
         try {
+          const { error: insErr } = await supabase.from("installations").insert({
+            id: installationId,
+            ...toPayload(),
+            created_by: user.id,
+          });
+          if (insErr) throw insErr;
+          rowInserted = true;
+
           staged = [
             ...(await stageFilesToStorage(
               supabase,
@@ -173,14 +183,6 @@ export function InstallationForm({
               pendingAcceptance
             )),
           ];
-
-          const { error: insErr } = await supabase.from("installations").insert({
-            id: installationId,
-            ...toPayload(),
-            created_by: user.id,
-          });
-          if (insErr) throw insErr;
-          rowInserted = true;
 
           for (const item of staged) {
             const { error: imgErr } = await supabase.from("installation_images").insert({
