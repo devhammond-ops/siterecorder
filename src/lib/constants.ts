@@ -60,3 +60,5 @@ export const DEFAULT_IMAGE_SLOT = SITE_PHOTOS_SLOT;
 
 export const STORAGE_BUCKET = "installation-images";
 export const REPORTS_BUCKET = "reports";
+export const HSQ_IMAGES_BUCKET = "hsq-images";
+export const HSQ_SAFETY_PHOTOS_SLOT = "safety";
