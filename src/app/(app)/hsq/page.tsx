@@ -43,8 +43,8 @@ export default async function HsqReportsPage() {
                 <thead className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 font-medium">Date</th>
-                    <th className="px-3 py-2 font-medium">Site ID</th>
                     <th className="px-3 py-2 font-medium">Location</th>
+                    <th className="px-3 py-2 font-medium">Risk</th>
                     <th className="px-3 py-2 font-medium">Prepared by</th>
                     <th className="px-3 py-2 font-medium">Supervisor</th>
                     <th className="px-3 py-2 font-medium">Status</th>
@@ -58,8 +58,8 @@ export default async function HsqReportsPage() {
                           {formatDate(r.report_date)}
                         </Link>
                       </td>
-                      <td className="px-3 py-2">{r.site_id}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{r.location || "—"}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{r.location}</td>
+                      <td className="px-3 py-2">{r.risk_score ?? "—"}</td>
                       <td className="px-3 py-2">{r.prepared_by_name}</td>
                       <td className="px-3 py-2">{r.supervisor_name || "—"}</td>
                       <td className="px-3 py-2">

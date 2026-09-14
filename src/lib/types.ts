@@ -81,8 +81,7 @@ export interface ReportRun {
 export interface HsqDailyReport {
   id: string;
   report_date: string;
-  site_id: string;
-  location: string | null;
+  location: string;
   task_description: string;
   prepared_by: string;
   prepared_by_name: string;
@@ -90,6 +89,10 @@ export interface HsqDailyReport {
   supervisor_id: string | null;
   supervisor_name: string | null;
   supervisor_signature: string | null;
+  risk_probability: number | null;
+  risk_severity: number | null;
+  risk_score: number | null;
+  ppe_checklist: Record<string, { result: string; remarks: string[] }>;
   status: string;
   created_at: string;
   updated_at: string;
@@ -101,6 +104,16 @@ export interface HsqReportWorker {
   user_id: string | null;
   worker_name: string;
   worker_signature: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface HsqReportVisitor {
+  id: string;
+  report_id: string;
+  visitor_name: string;
+  visitor_signature: string | null;
+  visit_time: string | null;
   sort_order: number;
   created_at: string;
 }

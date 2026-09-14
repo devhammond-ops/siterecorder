@@ -7,10 +7,10 @@ import { HsqReportForm } from "@/components/hsq-report-form";
 
 export default async function NewHsqReportPage() {
   const user = await requireHsqAccess();
-  const admins = await getSupervisorOptions();
+  const supervisorsRaw = await getSupervisorOptions();
   const preparerName = user.profile?.full_name?.trim() || user.email || "Unknown";
 
-  const supervisors = admins.map((a) => ({
+  const supervisors = supervisorsRaw.map((a) => ({
     id: a.id,
     full_name: a.full_name ?? "(no name)",
     signature: profileSignature(a.full_name),
@@ -28,7 +28,8 @@ export default async function NewHsqReportPage() {
       <div>
         <h1 className="text-2xl font-bold">New HSQ Daily Report</h1>
         <p className="text-sm text-muted-foreground">
-          Enter the Site ID to load workers from installations logged on the selected date.
+          Enter the site location, score the risk matrix, add attendance, and complete the PPE
+          checklist.
         </p>
       </div>
       <HsqReportForm
