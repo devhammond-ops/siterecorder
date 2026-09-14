@@ -19,7 +19,7 @@ export default async function HsqReportDetailPage({
   ]);
   if (!data) notFound();
 
-  const { report, workers, visitors } = data;
+  const { report, workers, visitors, safetyPhotos } = data;
   const supervisors = supervisorsRaw.map((a) => ({
     id: a.id,
     full_name: a.full_name ?? "(no name)",
@@ -50,6 +50,7 @@ export default async function HsqReportDetailPage({
         report={report}
         workers={workers}
         visitors={visitors}
+        safetyPhotos={safetyPhotos}
       />
     </div>
   );

@@ -118,6 +118,15 @@ export interface HsqReportVisitor {
   created_at: string;
 }
 
+export interface HsqReportImage {
+  id: string;
+  report_id: string;
+  slot: string;
+  storage_path: string;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
 export interface HsqWorkerLookup {
   user_id: string;
   full_name: string;

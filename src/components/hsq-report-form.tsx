@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { HSQ_IMAGES_BUCKET, HSQ_SAFETY_PHOTOS_SLOT } from "@/lib/constants";
 import {
   emptyPpeChecklist,
   HSQ_COMPANY,
@@ -28,12 +29,14 @@ import type {
   HsqReportWorker,
 } from "@/lib/types";
 import { SignaturePreview } from "@/components/signature-preview";
+import { ImageUploader } from "@/components/image-uploader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { HsqSafetyPhoto } from "@/lib/hsq";
 
 interface SupervisorOption {
   id: string;
@@ -62,6 +65,7 @@ interface Props {
   report?: HsqDailyReport;
   workers?: HsqReportWorker[];
   visitors?: HsqReportVisitor[];
+  safetyPhotos?: HsqSafetyPhoto[];
 }
 
 interface HsqDraft {
@@ -95,6 +99,7 @@ export function HsqReportForm({
   report,
   workers: initialWorkers = [],
   visitors: initialVisitors = [],
+  safetyPhotos = [],
 }: Props) {
   const router = useRouter();
   const submittingRef = useRef(false);
@@ -144,10 +149,15 @@ export function HsqReportForm({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingSafetyPhotos, setPendingSafetyPhotos] = useState<File[]>([]);
 
   const selectedSupervisor = supervisors.find((s) => s.id === supervisorId);
   const riskScore =
     riskProbability && riskSeverity ? riskProbability * riskSeverity : null;
+
+  const ppeAllPass = HSQ_PPE_ITEMS.every((item) => ppe[item.id]?.result === "PASS");
+  const ppeAllFail = HSQ_PPE_ITEMS.every((item) => ppe[item.id]?.result === "FAIL");
+  const ppeAllNa = HSQ_PPE_ITEMS.every((item) => ppe[item.id]?.result === "N/A");
 
   function patchDraft(partial: Partial<HsqDraft>) {
     setDraft((prev) => ({ ...prev, ...partial }));
@@ -156,6 +166,18 @@ export function HsqReportForm({
   function setRiskCell(probability: number, severity: number) {
     if (readOnly) return;
     patchDraft({ riskProbability: probability, riskSeverity: severity });
+  }
+
+  function setAllPpe(result: PpeResult) {
+    if (readOnly || !result) return;
+    const next: PpeChecklistState = { ...ppe };
+    for (const item of HSQ_PPE_ITEMS) {
+      next[item.id] = {
+        result,
+        remarks: result === "FAIL" ? next[item.id]?.remarks ?? [] : [],
+      };
+    }
+    patchDraft({ ppe: next });
   }
 
   function addWorker() {
@@ -283,35 +305,64 @@ export function HsqReportForm({
       if (insErr) throw insErr;
 
       const reportId = row.id as string;
+      let uploadedPaths: string[] = [];
 
-      if (workers.length > 0) {
-        const workerRows = workers.filter((w) => w.worker_name.trim());
-        if (workerRows.length > 0) {
-          const { error: workerErr } = await supabase.from("hsq_report_workers").insert(
-            workerRows.map((w, index) => ({
+      try {
+        if (workers.length > 0) {
+          const workerRows = workers.filter((w) => w.worker_name.trim());
+          if (workerRows.length > 0) {
+            const { error: workerErr } = await supabase.from("hsq_report_workers").insert(
+              workerRows.map((w, index) => ({
+                report_id: reportId,
+                user_id: null,
+                worker_name: w.worker_name.trim(),
+                worker_signature: w.worker_signature.trim() || "—",
+                sort_order: index,
+              }))
+            );
+            if (workerErr) throw workerErr;
+          }
+        }
+
+        const visitorRows = visitors.filter((v) => v.visitor_name.trim());
+        if (visitorRows.length > 0) {
+          const { error: visitorErr } = await supabase.from("hsq_report_visitors").insert(
+            visitorRows.map((v, index) => ({
               report_id: reportId,
-              user_id: null,
-              worker_name: w.worker_name.trim(),
-              worker_signature: w.worker_signature.trim() || "—",
+              visitor_name: v.visitor_name.trim(),
+              visitor_signature: v.visitor_signature.trim() || null,
+              visit_time: v.visit_time.trim() || null,
               sort_order: index,
             }))
           );
-          if (workerErr) throw workerErr;
+          if (visitorErr) throw visitorErr;
         }
-      }
 
-      const visitorRows = visitors.filter((v) => v.visitor_name.trim());
-      if (visitorRows.length > 0) {
-        const { error: visitorErr } = await supabase.from("hsq_report_visitors").insert(
-          visitorRows.map((v, index) => ({
+        for (const file of pendingSafetyPhotos) {
+          const ext = file.name.split(".").pop() || "jpg";
+          const path = `${reportId}/${HSQ_SAFETY_PHOTOS_SLOT}-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2, 8)}.${ext}`;
+          const { error: upErr } = await supabase.storage
+            .from(HSQ_IMAGES_BUCKET)
+            .upload(path, file, { upsert: false });
+          if (upErr) throw upErr;
+          uploadedPaths.push(path);
+
+          const { error: imgErr } = await supabase.from("hsq_report_images").insert({
             report_id: reportId,
-            visitor_name: v.visitor_name.trim(),
-            visitor_signature: v.visitor_signature.trim() || null,
-            visit_time: v.visit_time.trim() || null,
-            sort_order: index,
-          }))
-        );
-        if (visitorErr) throw visitorErr;
+            slot: HSQ_SAFETY_PHOTOS_SLOT,
+            storage_path: path,
+            uploaded_by: preparerId,
+          });
+          if (imgErr) throw imgErr;
+        }
+      } catch (innerErr) {
+        if (uploadedPaths.length > 0) {
+          await supabase.storage.from(HSQ_IMAGES_BUCKET).remove(uploadedPaths);
+        }
+        await supabase.from("hsq_daily_reports").delete().eq("id", reportId);
+        throw innerErr;
       }
 
       clearDraftState();
@@ -761,14 +812,82 @@ export function HsqReportForm({
           </div>
 
           <div className="overflow-x-auto">
+            {!readOnly && (
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 p-2 text-xs sm:text-sm">
+                <span className="text-muted-foreground">Set all checklist items to:</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={ppeAllPass ? "default" : "outline"}
+                  onClick={() => setAllPpe("PASS")}
+                >
+                  Pass
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={ppeAllFail ? "default" : "outline"}
+                  onClick={() => setAllPpe("FAIL")}
+                >
+                  Fail
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={ppeAllNa ? "default" : "outline"}
+                  onClick={() => setAllPpe("N/A")}
+                >
+                  N/A
+                </Button>
+              </div>
+            )}
             <table className="w-full min-w-[760px] border-collapse text-xs">
               <thead>
                 <tr className="border-b bg-muted/50 text-left">
                   <th className="p-2">Item</th>
                   <th className="p-2">Description</th>
-                  <th className="p-2 text-center">PASS</th>
-                  <th className="p-2 text-center">FAIL</th>
-                  <th className="p-2 text-center">N/A</th>
+                  <th className="p-2 text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <span>PASS</span>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          className="text-[10px] font-normal text-primary underline-offset-2 hover:underline"
+                          onClick={() => setAllPpe("PASS")}
+                        >
+                          Select all
+                        </button>
+                      )}
+                    </div>
+                  </th>
+                  <th className="p-2 text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <span>FAIL</span>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          className="text-[10px] font-normal text-primary underline-offset-2 hover:underline"
+                          onClick={() => setAllPpe("FAIL")}
+                        >
+                          Select all
+                        </button>
+                      )}
+                    </div>
+                  </th>
+                  <th className="p-2 text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <span>N/A</span>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          className="text-[10px] font-normal text-primary underline-offset-2 hover:underline"
+                          onClick={() => setAllPpe("N/A")}
+                        >
+                          Select all
+                        </button>
+                      )}
+                    </div>
+                  </th>
                   <th className="p-2">Remark if Fail</th>
                 </tr>
               </thead>
@@ -834,6 +953,48 @@ export function HsqReportForm({
               <p className="font-medium">{reportDate}</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Safety Pictures</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {readOnly ? (
+            safetyPhotos.length === 0 ? (
+              <p className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
+                No safety pictures
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                {safetyPhotos.map((img) => (
+                  <a
+                    key={img.id}
+                    href={img.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="aspect-square overflow-hidden rounded-md border bg-muted"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.url} alt="" className="h-full w-full object-cover" />
+                  </a>
+                ))}
+              </div>
+            )
+          ) : (
+            <>
+              <ImageUploader
+                mode="create"
+                slot={HSQ_SAFETY_PHOTOS_SLOT}
+                hint="Use Choose from device for gallery photos, or Take photo for the camera."
+                onPendingChange={setPendingSafetyPhotos}
+              />
+              <p className="mt-3 text-xs text-muted-foreground">
+                Photos are uploaded when you save the report. Optional — add site safety evidence.
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
 
