@@ -170,12 +170,15 @@ export function HsqReportForm({
 
   function setAllPpe(result: PpeResult) {
     if (readOnly || !result) return;
+    const alreadyAll = HSQ_PPE_ITEMS.every((item) => ppe[item.id]?.result === result);
     const next: PpeChecklistState = { ...ppe };
     for (const item of HSQ_PPE_ITEMS) {
-      next[item.id] = {
-        result,
-        remarks: result === "FAIL" ? next[item.id]?.remarks ?? [] : [],
-      };
+      next[item.id] = alreadyAll
+        ? { result: "", remarks: [] }
+        : {
+            result,
+            remarks: result === "FAIL" ? next[item.id]?.remarks ?? [] : [],
+          };
     }
     patchDraft({ ppe: next });
   }
