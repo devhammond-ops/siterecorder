@@ -1,24 +1,57 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { HSQ_COMPANY, HSQ_HAZARD_ROWS } from "@/lib/hsq-constants";
+import {
+  emptyPpeChecklist,
+  HSQ_COMPANY,
+  HSQ_DEFAULT_TASK,
+  HSQ_HAZARD_ROWS,
+  HSQ_PPE_ITEMS,
+  HSQ_PROBABILITY_LABELS,
+  HSQ_SBC,
+  HSQ_SEVERITY_CONSEQUENCES,
+  HSQ_SEVERITY_LABELS,
+  riskAcceptanceText,
+  riskBand,
+  type PpeChecklistState,
+  type PpeRemark,
+  type PpeResult,
+} from "@/lib/hsq-constants";
 import { usePersistedState } from "@/lib/form-draft";
 import { profileSignature } from "@/lib/profile";
-import type { HsqDailyReport, HsqReportWorker, HsqWorkerLookup } from "@/lib/types";
+import type {
+  HsqDailyReport,
+  HsqReportVisitor,
+  HsqReportWorker,
+} from "@/lib/types";
 import { SignaturePreview } from "@/components/signature-preview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface SupervisorOption {
   id: string;
   full_name: string;
   signature: string;
+}
+
+interface WorkerDraft {
+  key: string;
+  worker_name: string;
+  worker_signature: string;
+}
+
+interface VisitorDraft {
+  key: string;
+  visitor_name: string;
+  visitor_signature: string;
+  visit_time: string;
 }
 
 interface Props {
@@ -28,15 +61,30 @@ interface Props {
   supervisors: SupervisorOption[];
   report?: HsqDailyReport;
   workers?: HsqReportWorker[];
+  visitors?: HsqReportVisitor[];
 }
 
 interface HsqDraft {
   reportDate: string;
-  siteId: string;
   location: string;
   taskDescription: string;
   supervisorId: string;
-  workers: HsqWorkerLookup[];
+  riskProbability: number | null;
+  riskSeverity: number | null;
+  workers: WorkerDraft[];
+  visitors: VisitorDraft[];
+  ppe: PpeChecklistState;
+}
+
+function bandCellClass(score: number, selected: boolean) {
+  const band = riskBand(score);
+  const base =
+    band === "high"
+      ? "bg-red-600 text-white"
+      : band === "medium"
+        ? "bg-amber-300 text-amber-950"
+        : "bg-emerald-500 text-white";
+  return cn(base, selected && "ring-2 ring-offset-2 ring-foreground scale-105");
 }
 
 export function HsqReportForm({
@@ -46,107 +94,161 @@ export function HsqReportForm({
   supervisors,
   report,
   workers: initialWorkers = [],
+  visitors: initialVisitors = [],
 }: Props) {
   const router = useRouter();
   const submittingRef = useRef(false);
-  const skipLookupRef = useRef(false);
-  const restoredSkipSet = useRef(false);
   const readOnly = mode === "view";
 
   const seed: HsqDraft = {
     reportDate: report?.report_date ?? new Date().toISOString().slice(0, 10),
-    siteId: report?.site_id ?? "",
     location: report?.location ?? "",
-    taskDescription: report?.task_description ?? "FTTH",
+    taskDescription: report?.task_description ?? HSQ_DEFAULT_TASK,
     supervisorId: report?.supervisor_id ?? "",
-    workers: initialWorkers.map((w) => ({
-      user_id: w.user_id ?? "",
-      full_name: w.worker_name,
-      signature: w.worker_signature,
+    riskProbability: report?.risk_probability ?? null,
+    riskSeverity: report?.risk_severity ?? null,
+    workers: initialWorkers.map((w, i) => ({
+      key: w.id || `w-${i}`,
+      worker_name: w.worker_name,
+      worker_signature: w.worker_signature,
     })),
+    visitors: initialVisitors.map((v, i) => ({
+      key: v.id || `v-${i}`,
+      visitor_name: v.visitor_name,
+      visitor_signature: v.visitor_signature ?? "",
+      visit_time: v.visit_time ?? "",
+    })),
+    ppe: {
+      ...emptyPpeChecklist(),
+      ...(report?.ppe_checklist as PpeChecklistState | undefined),
+    },
   };
 
-  const [draft, setDraft, clearDraftState, draftReady] = usePersistedState<HsqDraft>(
-    "hsq-report:new",
+  const [draft, setDraft, clearDraftState] = usePersistedState<HsqDraft>(
+    "hsq-report:v3",
     seed,
     !readOnly
   );
 
-  const { reportDate, siteId, location, taskDescription, supervisorId, workers } = draft;
-  const [lookupLoading, setLookupLoading] = useState(false);
+  const {
+    reportDate,
+    location,
+    taskDescription,
+    supervisorId,
+    riskProbability,
+    riskSeverity,
+    workers,
+    visitors,
+    ppe,
+  } = draft;
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selectedSupervisor = supervisors.find((s) => s.id === supervisorId);
+  const riskScore =
+    riskProbability && riskSeverity ? riskProbability * riskSeverity : null;
 
   function patchDraft(partial: Partial<HsqDraft>) {
     setDraft((prev) => ({ ...prev, ...partial }));
   }
 
-  const runSiteLookup = useCallback(
-    async (id: string, date: string) => {
-      const trimmed = id.trim();
-      if (!trimmed || !date) return;
-      setLookupLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(
-          `/api/hsq/lookup?site_id=${encodeURIComponent(trimmed)}&date=${encodeURIComponent(date)}`
-        );
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Lookup failed");
-        setDraft((prev) => ({
-          ...prev,
-          location: data.location || prev.location,
-          taskDescription: data.taskDescription || prev.taskDescription,
-          workers: data.workers ?? [],
-        }));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to look up site workers");
-      } finally {
-        setLookupLoading(false);
-      }
-    },
-    [setDraft]
-  );
+  function setRiskCell(probability: number, severity: number) {
+    if (readOnly) return;
+    patchDraft({ riskProbability: probability, riskSeverity: severity });
+  }
 
-  useEffect(() => {
-    if (!draftReady || readOnly) return;
-    if (!restoredSkipSet.current) {
-      restoredSkipSet.current = true;
-      if (siteId.trim() && workers.length > 0) {
-        skipLookupRef.current = true;
-      }
-    }
-  }, [draftReady, readOnly, siteId, workers.length]);
+  function addWorker() {
+    patchDraft({
+      workers: [
+        ...workers,
+        {
+          key: `w-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          worker_name: "",
+          worker_signature: "",
+        },
+      ],
+    });
+  }
 
-  useEffect(() => {
-    if (!draftReady || readOnly || !siteId.trim()) return;
-    if (skipLookupRef.current) {
-      skipLookupRef.current = false;
-      return;
-    }
-    // Wait for typing/pasting to finish before fetching workers.
-    const timer = setTimeout(() => {
-      runSiteLookup(siteId, reportDate);
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, [siteId, reportDate, readOnly, runSiteLookup, draftReady]);
+  function updateWorker(key: string, partial: Partial<WorkerDraft>) {
+    patchDraft({
+      workers: workers.map((w) => (w.key === key ? { ...w, ...partial } : w)),
+    });
+  }
+
+  function removeWorker(key: string) {
+    patchDraft({ workers: workers.filter((w) => w.key !== key) });
+  }
+
+  function addVisitor() {
+    patchDraft({
+      visitors: [
+        ...visitors,
+        {
+          key: `v-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          visitor_name: "",
+          visitor_signature: "",
+          visit_time: "",
+        },
+      ],
+    });
+  }
+
+  function updateVisitor(key: string, partial: Partial<VisitorDraft>) {
+    patchDraft({
+      visitors: visitors.map((v) => (v.key === key ? { ...v, ...partial } : v)),
+    });
+  }
+
+  function removeVisitor(key: string) {
+    patchDraft({ visitors: visitors.filter((v) => v.key !== key) });
+  }
+
+  function setPpeResult(id: string, result: PpeResult) {
+    const current = ppe[id] ?? { result: "", remarks: [] };
+    patchDraft({
+      ppe: {
+        ...ppe,
+        [id]: {
+          result,
+          remarks: result === "FAIL" ? current.remarks : [],
+        },
+      },
+    });
+  }
+
+  function togglePpeRemark(id: string, remark: PpeRemark) {
+    const current = ppe[id] ?? { result: "", remarks: [] };
+    if (current.result !== "FAIL") return;
+    const has = current.remarks.includes(remark);
+    patchDraft({
+      ppe: {
+        ...ppe,
+        [id]: {
+          ...current,
+          remarks: has
+            ? current.remarks.filter((r) => r !== remark)
+            : [...current.remarks, remark],
+        },
+      },
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submittingRef.current || readOnly) return;
 
-    if (!siteId.trim()) {
-      setError("Site ID is required.");
+    if (!location.trim()) {
+      setError("Site location is required.");
       return;
     }
-    if (!supervisorId) {
+    if (!supervisorId || !selectedSupervisor) {
       setError("Please select a supervisor.");
       return;
     }
-    if (!selectedSupervisor) {
-      setError("Invalid supervisor selection.");
+    if (!riskProbability || !riskSeverity || !riskScore) {
+      setError("Select a cell on the risk rating matrix.");
       return;
     }
 
@@ -162,15 +264,18 @@ export function HsqReportForm({
         .from("hsq_daily_reports")
         .insert({
           report_date: reportDate,
-          site_id: siteId.trim(),
-          location: location.trim() || null,
-          task_description: taskDescription.trim() || "FTTH",
+          location: location.trim(),
+          task_description: taskDescription.trim() || HSQ_DEFAULT_TASK,
           prepared_by: preparerId,
           prepared_by_name: preparerName,
           prepared_by_signature: preparedSignature,
           supervisor_id: supervisorId,
           supervisor_name: selectedSupervisor.full_name,
           supervisor_signature: selectedSupervisor.signature,
+          risk_probability: riskProbability,
+          risk_severity: riskSeverity,
+          risk_score: riskScore,
+          ppe_checklist: ppe,
           status: "submitted",
         })
         .select("id")
@@ -178,17 +283,35 @@ export function HsqReportForm({
       if (insErr) throw insErr;
 
       const reportId = row.id as string;
+
       if (workers.length > 0) {
-        const { error: workerErr } = await supabase.from("hsq_report_workers").insert(
-          workers.map((w, index) => ({
+        const workerRows = workers.filter((w) => w.worker_name.trim());
+        if (workerRows.length > 0) {
+          const { error: workerErr } = await supabase.from("hsq_report_workers").insert(
+            workerRows.map((w, index) => ({
+              report_id: reportId,
+              user_id: null,
+              worker_name: w.worker_name.trim(),
+              worker_signature: w.worker_signature.trim() || "—",
+              sort_order: index,
+            }))
+          );
+          if (workerErr) throw workerErr;
+        }
+      }
+
+      const visitorRows = visitors.filter((v) => v.visitor_name.trim());
+      if (visitorRows.length > 0) {
+        const { error: visitorErr } = await supabase.from("hsq_report_visitors").insert(
+          visitorRows.map((v, index) => ({
             report_id: reportId,
-            user_id: w.user_id || null,
-            worker_name: w.full_name,
-            worker_signature: w.signature,
+            visitor_name: v.visitor_name.trim(),
+            visitor_signature: v.visitor_signature.trim() || null,
+            visit_time: v.visit_time.trim() || null,
             sort_order: index,
           }))
         );
-        if (workerErr) throw workerErr;
+        if (visitorErr) throw visitorErr;
       }
 
       clearDraftState();
@@ -201,6 +324,8 @@ export function HsqReportForm({
       setSaving(false);
     }
   }
+
+  let lastPpeGroup = "";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6" noValidate>
@@ -222,24 +347,30 @@ export function HsqReportForm({
               />
             </div>
             <div>
-              <Label htmlFor="site_id">
-                Site ID <span className="text-destructive">*</span>
+              <Label htmlFor="location">
+                Site location <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="site_id"
-                value={siteId}
-                onChange={(e) => patchDraft({ siteId: e.target.value })}
-                placeholder="Enter site identifier"
+                id="location"
+                value={location}
+                onChange={(e) => patchDraft({ location: e.target.value })}
+                placeholder="e.g. Atomic Roundabout Taifa - Dome"
                 disabled={readOnly}
                 required
               />
-              {lookupLoading && (
-                <p className="mt-1 text-xs text-muted-foreground">Looking up workers…</p>
-              )}
+            </div>
+            <div>
+              <Label htmlFor="task">Description of Task</Label>
+              <Input
+                id="task"
+                value={taskDescription}
+                onChange={(e) => patchDraft({ taskDescription: e.target.value })}
+                disabled={readOnly}
+              />
             </div>
           </div>
 
-          <div className="rounded-md border divide-y text-sm">
+          <div className="rounded-md border text-sm">
             <div className="grid grid-cols-2 gap-4 p-3 sm:grid-cols-4">
               <div>
                 <p className="text-xs text-muted-foreground">Company</p>
@@ -259,12 +390,6 @@ export function HsqReportForm({
               </div>
             </div>
           </div>
-          {!readOnly && (
-            <p className="text-xs text-muted-foreground">
-              Your entries are kept if the page reloads before you save. Worker lookup waits until
-              you finish typing the Site ID.
-            </p>
-          )}
         </CardContent>
       </Card>
 
@@ -315,10 +440,7 @@ export function HsqReportForm({
               <Label>Name</Label>
               <p className="text-sm font-medium">{preparerName}</p>
             </div>
-            <div>
-              <Label>Signature</Label>
-              <SignaturePreview fullName={preparerName} className="mt-1 min-h-[4rem]" />
-            </div>
+            <SignaturePreview fullName={preparerName} className="min-h-[4rem]" />
           </CardContent>
         </Card>
 
@@ -328,7 +450,7 @@ export function HsqReportForm({
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Select an admin supervisor. Signature is generated from their profile name.
+              Select an admin or team leader. Signature is generated from their profile.
             </p>
             <div>
               <Label htmlFor="supervisor">Supervisor</Label>
@@ -348,13 +470,10 @@ export function HsqReportForm({
               </Select>
             </div>
             {selectedSupervisor && (
-              <div>
-                <Label>Signature</Label>
-                <SignaturePreview
-                  fullName={selectedSupervisor.full_name}
-                  className="mt-1 min-h-[4rem]"
-                />
-              </div>
+              <SignaturePreview
+                fullName={selectedSupervisor.full_name}
+                className="min-h-[4rem]"
+              />
             )}
           </CardContent>
         </Card>
@@ -362,35 +481,359 @@ export function HsqReportForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>Workers Sign On</CardTitle>
+          <CardTitle>Risk Rating Matrix</CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="mb-3 text-sm text-muted-foreground">
-            Populated automatically when Site ID is entered — all technicians who logged
-            installations at this site on the selected date.
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Tap a cell to set Probability × Severity for this site day.
+            {riskScore != null && (
+              <>
+                {" "}
+                Selected score: <strong>{riskScore}</strong> ({riskBand(riskScore)}) —{" "}
+                {riskAcceptanceText(riskScore)}
+              </>
+            )}
           </p>
-          {workers.length === 0 ? (
-            <p className="rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground">
-              Enter a Site ID to load workers from installations for this date.
-            </p>
-          ) : (
-            <table className="w-full border-collapse text-sm">
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] border-collapse text-center text-xs">
               <thead>
-                <tr className="border-b bg-muted/50 text-left">
-                  <th className="p-2 font-medium">Name (Please print)</th>
-                  <th className="p-2 font-medium">Signature</th>
+                <tr>
+                  <th className="p-2 text-left">Probability \\ Severity</th>
+                  {HSQ_SEVERITY_LABELS.map((s) => (
+                    <th key={s.value} className="p-2 font-medium">
+                      {s.value} {s.label}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {workers.map((w) => (
-                  <tr key={w.user_id || w.full_name} className="border-b">
-                    <td className="p-2">{w.full_name}</td>
-                    <td className="p-2 font-medium">{w.signature}</td>
+                {HSQ_PROBABILITY_LABELS.map((p) => (
+                  <tr key={p.value}>
+                    <td className="p-2 text-left font-medium">
+                      {p.value} {p.label}
+                    </td>
+                    {HSQ_SEVERITY_LABELS.map((s) => {
+                      const score = p.value * s.value;
+                      const selected =
+                        riskProbability === p.value && riskSeverity === s.value;
+                      return (
+                        <td key={s.value} className="p-1">
+                          <button
+                            type="button"
+                            disabled={readOnly}
+                            onClick={() => setRiskCell(p.value, s.value)}
+                            className={cn(
+                              "h-10 w-full rounded text-sm font-semibold transition",
+                              bandCellClass(score, selected),
+                              readOnly && "cursor-default opacity-90"
+                            )}
+                          >
+                            {score}
+                          </button>
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] border-collapse text-xs">
+              <thead>
+                <tr className="border-b bg-muted/50 text-left">
+                  <th className="p-2">Risk Rating</th>
+                  <th className="p-2">Risk Acceptance Authority</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b">
+                  <td className="p-2">
+                    <span className="rounded bg-emerald-500 px-2 py-0.5 text-white">1 to 4 (Low)</span>
+                  </td>
+                  <td className="p-2">Risk is tolerable, manage at local level</td>
+                </tr>
+                <tr className="border-b">
+                  <td className="p-2">
+                    <span className="rounded bg-amber-300 px-2 py-0.5 text-amber-950">
+                      5 to 9 (Medium)
+                    </span>
+                  </td>
+                  <td className="p-2">
+                    Risk requires approval by Operations Lead/Supervisor & Safety Manager
+                  </td>
+                </tr>
+                <tr className="border-b">
+                  <td className="p-2">
+                    <span className="rounded bg-red-600 px-2 py-0.5 text-white">10 to 25 (High)</span>
+                  </td>
+                  <td className="p-2">
+                    Risk requires the approval of the Operations Manager & Safety Director
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] border-collapse text-xs">
+              <thead>
+                <tr className="border-b bg-muted/50 text-left">
+                  <th className="p-2">Severity</th>
+                  <th className="p-2">People</th>
+                  <th className="p-2">Property Damage</th>
+                  <th className="p-2">Environmental Impact</th>
+                  <th className="p-2">Public Image/Reputation</th>
+                </tr>
+              </thead>
+              <tbody>
+                {HSQ_SEVERITY_CONSEQUENCES.map((row) => (
+                  <tr key={row.label} className="border-b align-top">
+                    <td className="p-2 font-medium">{row.label}</td>
+                    <td className="p-2">{row.people}</td>
+                    <td className="p-2">{row.property}</td>
+                    <td className="p-2">{row.environment}</td>
+                    <td className="p-2">{row.reputation}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] border-collapse text-xs">
+              <thead>
+                <tr className="border-b bg-muted/50 text-left">
+                  <th className="p-2">Probability</th>
+                  <th className="p-2">Definition</th>
+                  <th className="p-2">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {HSQ_PROBABILITY_LABELS.map((p) => (
+                  <tr key={p.value} className="border-b">
+                    <td className="p-2 font-medium">{p.label}</td>
+                    <td className="p-2">{p.definition}</td>
+                    <td className="p-2">{p.ratio}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle>Workers Sign On</CardTitle>
+            {!readOnly && (
+              <Button type="button" size="sm" onClick={addWorker}>
+                <Plus className="h-4 w-4" />
+                Add worker
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {workers.length === 0 ? (
+              <p className="rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground">
+                No workers recorded.
+              </p>
+            ) : (
+              workers.map((w) => (
+                <div
+                  key={w.key}
+                  className="grid grid-cols-1 gap-2 rounded-md border p-3 sm:grid-cols-[1fr_1fr_auto]"
+                >
+                  <Input
+                    placeholder="Name (Please print)"
+                    value={w.worker_name}
+                    disabled={readOnly}
+                    onChange={(e) => updateWorker(w.key, { worker_name: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Signature"
+                    value={w.worker_signature}
+                    disabled={readOnly}
+                    onChange={(e) =>
+                      updateWorker(w.key, { worker_signature: e.target.value })
+                    }
+                  />
+                  {!readOnly && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeWorker(w.key)}
+                      aria-label="Remove worker"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle>Visitor Sign On</CardTitle>
+            {!readOnly && (
+              <Button type="button" size="sm" variant="outline" onClick={addVisitor}>
+                <Plus className="h-4 w-4" />
+                Add visitor
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {visitors.length === 0 ? (
+              <p className="rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground">
+                No visitors recorded.
+              </p>
+            ) : (
+              visitors.map((v) => (
+                <div key={v.key} className="grid grid-cols-1 gap-2 rounded-md border p-3 sm:grid-cols-3">
+                  <Input
+                    placeholder="Name"
+                    value={v.visitor_name}
+                    disabled={readOnly}
+                    onChange={(e) => updateVisitor(v.key, { visitor_name: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Signature"
+                    value={v.visitor_signature}
+                    disabled={readOnly}
+                    onChange={(e) =>
+                      updateVisitor(v.key, { visitor_signature: e.target.value })
+                    }
+                  />
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Time"
+                      value={v.visit_time}
+                      disabled={readOnly}
+                      onChange={(e) => updateVisitor(v.key, { visit_time: e.target.value })}
+                    />
+                    {!readOnly && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeVisitor(v.key)}
+                        aria-label="Remove visitor"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Subcontractor PPE Inspection Checklist</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Project</p>
+              <p className="font-medium">{taskDescription || HSQ_DEFAULT_TASK}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">SBC</p>
+              <p className="font-medium">{HSQ_SBC}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Location</p>
+              <p className="font-medium">{location || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Date</p>
+              <p className="font-medium">{reportDate}</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] border-collapse text-xs">
+              <thead>
+                <tr className="border-b bg-muted/50 text-left">
+                  <th className="p-2">Item</th>
+                  <th className="p-2">Description</th>
+                  <th className="p-2 text-center">PASS</th>
+                  <th className="p-2 text-center">FAIL</th>
+                  <th className="p-2 text-center">N/A</th>
+                  <th className="p-2">Remark if Fail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {HSQ_PPE_ITEMS.map((item) => {
+                  const showGroup = item.group !== lastPpeGroup;
+                  lastPpeGroup = item.group;
+                  const answer = ppe[item.id] ?? { result: "", remarks: [] };
+                  return (
+                    <tr key={item.id} className="border-b align-middle">
+                      <td className="p-2 font-medium">{showGroup ? item.group : ""}</td>
+                      <td className="p-2">{item.description}</td>
+                      {(["PASS", "FAIL", "N/A"] as PpeResult[]).map((opt) => (
+                        <td key={opt} className="p-2 text-center">
+                          <input
+                            type="radio"
+                            name={`ppe-${item.id}`}
+                            checked={answer.result === opt}
+                            disabled={readOnly}
+                            onChange={() => setPpeResult(item.id, opt)}
+                          />
+                        </td>
+                      ))}
+                      <td className="p-2">
+                        <div className="flex flex-wrap gap-2">
+                          {(["Clean", "Repair", "Replace"] as PpeRemark[]).map((remark) => (
+                            <label
+                              key={remark}
+                              className={cn(
+                                "inline-flex items-center gap-1",
+                                answer.result !== "FAIL" && "opacity-40"
+                              )}
+                            >
+                              <input
+                                type="checkbox"
+                                disabled={readOnly || answer.result !== "FAIL"}
+                                checked={answer.remarks.includes(remark)}
+                                onChange={() => togglePpeRemark(item.id, remark)}
+                              />
+                              {remark}
+                            </label>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Admintelecom Rep</p>
+              <p className="font-medium">{preparerName}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Signature</p>
+              <p className="font-medium">{profileSignature(preparerName)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Date</p>
+              <p className="font-medium">{reportDate}</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

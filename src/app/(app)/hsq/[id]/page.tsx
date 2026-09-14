@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireHsqAccess } from "@/lib/auth";
-import { getHsqReportWithWorkers, getSupervisorOptions } from "@/lib/hsq";
+import { getHsqReportDetail, getSupervisorOptions } from "@/lib/hsq";
 import { profileSignature } from "@/lib/profile";
 import { HsqReportForm } from "@/components/hsq-report-form";
 
@@ -13,14 +13,14 @@ export default async function HsqReportDetailPage({
 }) {
   await requireHsqAccess();
   const { id } = await params;
-  const [data, admins] = await Promise.all([
-    getHsqReportWithWorkers(id),
+  const [data, supervisorsRaw] = await Promise.all([
+    getHsqReportDetail(id),
     getSupervisorOptions(),
   ]);
   if (!data) notFound();
 
-  const { report, workers } = data;
-  const supervisors = admins.map((a) => ({
+  const { report, workers, visitors } = data;
+  const supervisors = supervisorsRaw.map((a) => ({
     id: a.id,
     full_name: a.full_name ?? "(no name)",
     signature: profileSignature(a.full_name),
@@ -36,9 +36,10 @@ export default async function HsqReportDetailPage({
         Back to HSQ reports
       </Link>
       <div>
-        <h1 className="text-2xl font-bold">HSQ Report — {report.site_id}</h1>
+        <h1 className="text-2xl font-bold">HSQ Report — {report.location}</h1>
         <p className="text-sm text-muted-foreground">
-          {report.location || "No location"} · {report.report_date}
+          {report.task_description} · {report.report_date}
+          {report.risk_score != null ? ` · Risk score ${report.risk_score}` : ""}
         </p>
       </div>
       <HsqReportForm
@@ -48,6 +49,7 @@ export default async function HsqReportDetailPage({
         supervisors={supervisors}
         report={report}
         workers={workers}
+        visitors={visitors}
       />
     </div>
   );

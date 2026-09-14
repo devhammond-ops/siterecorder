@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { lookupHsqSiteWorkers } from "@/lib/hsq";
+import { getAllUserOptions } from "@/lib/hsq";
 import type { UserRole } from "@/lib/types";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -22,16 +22,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const siteId = request.nextUrl.searchParams.get("site_id")?.trim() ?? "";
-  const reportDate = request.nextUrl.searchParams.get("date")?.trim() ?? "";
-
-  if (!siteId || !reportDate) {
-    return NextResponse.json(
-      { error: "site_id and date are required" },
-      { status: 400 }
-    );
-  }
-
-  const result = await lookupHsqSiteWorkers(siteId, reportDate);
-  return NextResponse.json(result);
+  const users = await getAllUserOptions();
+  return NextResponse.json(users);
 }

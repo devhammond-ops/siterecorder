@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getSupervisorOptions } from "@/lib/hsq";
 import { profileSignature } from "@/lib/profile";
 import type { UserRole } from "@/lib/types";
 
@@ -23,11 +22,17 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const admins = await getSupervisorOptions();
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, full_name, role")
+    .in("role", ["admin", "team_leader"])
+    .order("full_name", { ascending: true });
+
   return NextResponse.json(
-    admins.map((a) => ({
+    (data ?? []).map((a) => ({
       id: a.id,
       full_name: a.full_name ?? "(no name)",
+      role: a.role,
       signature: profileSignature(a.full_name),
     }))
   );
