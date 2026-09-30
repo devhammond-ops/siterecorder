@@ -132,3 +132,21 @@ export interface HsqWorkerLookup {
   full_name: string;
   signature: string;
 }
+
+export interface Expense {
+  id: string;
+  expense_date: string;
+  description: string;
+  amount: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExpenseImage {
+  id: string;
+  expense_id: string;
+  storage_path: string;
+  uploaded_by: string | null;
+  created_at: string;
+}

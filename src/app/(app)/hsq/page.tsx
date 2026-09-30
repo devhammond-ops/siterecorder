@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { FileDown, Plus } from "lucide-react";
 import { requireHsqAccess } from "@/lib/auth";
 import { listHsqReports } from "@/lib/hsq";
 import { formatDate } from "@/lib/utils";
@@ -44,10 +44,10 @@ export default async function HsqReportsPage() {
                   <tr>
                     <th className="px-3 py-2 font-medium">Date</th>
                     <th className="px-3 py-2 font-medium">Location</th>
-                    <th className="px-3 py-2 font-medium">Risk</th>
                     <th className="px-3 py-2 font-medium">Prepared by</th>
                     <th className="px-3 py-2 font-medium">Supervisor</th>
                     <th className="px-3 py-2 font-medium">Status</th>
+                    <th className="px-3 py-2 font-medium">PDF</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -59,11 +59,20 @@ export default async function HsqReportsPage() {
                         </Link>
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">{r.location}</td>
-                      <td className="px-3 py-2">{r.risk_score ?? "—"}</td>
                       <td className="px-3 py-2">{r.prepared_by_name}</td>
                       <td className="px-3 py-2">{r.supervisor_name || "—"}</td>
                       <td className="px-3 py-2">
                         <Badge status={r.status}>{r.status}</Badge>
+                      </td>
+                      <td className="px-3 py-2">
+                        <a
+                          href={`/api/hsq/${r.id}/export/pdf`}
+                          className="inline-flex items-center gap-1 text-primary hover:underline"
+                          title="Export PDF"
+                        >
+                          <FileDown className="h-4 w-4" />
+                          <span className="sr-only sm:not-sr-only sm:inline">PDF</span>
+                        </a>
                       </td>
                     </tr>
                   ))}
