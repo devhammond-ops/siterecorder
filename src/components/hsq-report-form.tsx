@@ -15,7 +15,6 @@ import {
   HSQ_SBC,
   HSQ_SEVERITY_CONSEQUENCES,
   HSQ_SEVERITY_LABELS,
-  riskAcceptanceText,
   riskBand,
   type PpeChecklistState,
   type PpeRemark,
@@ -73,22 +72,18 @@ interface HsqDraft {
   location: string;
   taskDescription: string;
   supervisorId: string;
-  riskProbability: number | null;
-  riskSeverity: number | null;
   workers: WorkerDraft[];
   visitors: VisitorDraft[];
   ppe: PpeChecklistState;
 }
 
-function bandCellClass(score: number, selected: boolean) {
+function bandCellClass(score: number) {
   const band = riskBand(score);
-  const base =
-    band === "high"
-      ? "bg-red-600 text-white"
-      : band === "medium"
-        ? "bg-amber-300 text-amber-950"
-        : "bg-emerald-500 text-white";
-  return cn(base, selected && "ring-2 ring-offset-2 ring-foreground scale-105");
+  return band === "high"
+    ? "bg-red-600 text-white"
+    : band === "medium"
+      ? "bg-amber-300 text-amber-950"
+      : "bg-emerald-500 text-white";
 }
 
 export function HsqReportForm({
@@ -110,8 +105,6 @@ export function HsqReportForm({
     location: report?.location ?? "",
     taskDescription: report?.task_description ?? HSQ_DEFAULT_TASK,
     supervisorId: report?.supervisor_id ?? "",
-    riskProbability: report?.risk_probability ?? null,
-    riskSeverity: report?.risk_severity ?? null,
     workers: initialWorkers.map((w, i) => ({
       key: w.id || `w-${i}`,
       worker_name: w.worker_name,
@@ -140,8 +133,6 @@ export function HsqReportForm({
     location,
     taskDescription,
     supervisorId,
-    riskProbability,
-    riskSeverity,
     workers,
     visitors,
     ppe,
@@ -152,8 +143,6 @@ export function HsqReportForm({
   const [pendingSafetyPhotos, setPendingSafetyPhotos] = useState<File[]>([]);
 
   const selectedSupervisor = supervisors.find((s) => s.id === supervisorId);
-  const riskScore =
-    riskProbability && riskSeverity ? riskProbability * riskSeverity : null;
 
   const ppeAllPass = HSQ_PPE_ITEMS.every((item) => ppe[item.id]?.result === "PASS");
   const ppeAllFail = HSQ_PPE_ITEMS.every((item) => ppe[item.id]?.result === "FAIL");
@@ -161,11 +150,6 @@ export function HsqReportForm({
 
   function patchDraft(partial: Partial<HsqDraft>) {
     setDraft((prev) => ({ ...prev, ...partial }));
-  }
-
-  function setRiskCell(probability: number, severity: number) {
-    if (readOnly) return;
-    patchDraft({ riskProbability: probability, riskSeverity: severity });
   }
 
   function setAllPpe(result: PpeResult) {
@@ -272,10 +256,6 @@ export function HsqReportForm({
       setError("Please select a supervisor.");
       return;
     }
-    if (!riskProbability || !riskSeverity || !riskScore) {
-      setError("Select a cell on the risk rating matrix.");
-      return;
-    }
 
     submittingRef.current = true;
     setSaving(true);
@@ -297,9 +277,9 @@ export function HsqReportForm({
           supervisor_id: supervisorId,
           supervisor_name: selectedSupervisor.full_name,
           supervisor_signature: selectedSupervisor.signature,
-          risk_probability: riskProbability,
-          risk_severity: riskSeverity,
-          risk_score: riskScore,
+          risk_probability: null,
+          risk_severity: null,
+          risk_score: null,
           ppe_checklist: ppe,
           status: "submitted",
         })
@@ -539,14 +519,8 @@ export function HsqReportForm({
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Tap a cell to set Probability × Severity for this site day.
-            {riskScore != null && (
-              <>
-                {" "}
-                Selected score: <strong>{riskScore}</strong> ({riskBand(riskScore)}) —{" "}
-                {riskAcceptanceText(riskScore)}
-              </>
-            )}
+            Reference only — Probability × Severity scale for site risk assessment. No selection
+            required.
           </p>
 
           <div className="overflow-x-auto">
@@ -569,22 +543,16 @@ export function HsqReportForm({
                     </td>
                     {HSQ_SEVERITY_LABELS.map((s) => {
                       const score = p.value * s.value;
-                      const selected =
-                        riskProbability === p.value && riskSeverity === s.value;
                       return (
                         <td key={s.value} className="p-1">
-                          <button
-                            type="button"
-                            disabled={readOnly}
-                            onClick={() => setRiskCell(p.value, s.value)}
+                          <div
                             className={cn(
-                              "h-10 w-full rounded text-sm font-semibold transition",
-                              bandCellClass(score, selected),
-                              readOnly && "cursor-default opacity-90"
+                              "flex h-10 w-full items-center justify-center rounded text-sm font-semibold",
+                              bandCellClass(score)
                             )}
                           >
                             {score}
-                          </button>
+                          </div>
                         </td>
                       );
                     })}

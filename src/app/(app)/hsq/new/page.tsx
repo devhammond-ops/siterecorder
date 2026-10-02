@@ -28,8 +28,7 @@ export default async function NewHsqReportPage() {
       <div>
         <h1 className="text-2xl font-bold">New HSQ Daily Report</h1>
         <p className="text-sm text-muted-foreground">
-          Enter the site location, score the risk matrix, add attendance, and complete the PPE
-          checklist.
+          Enter the site location, add attendance, and complete the PPE checklist.
         </p>
       </div>
       <HsqReportForm
